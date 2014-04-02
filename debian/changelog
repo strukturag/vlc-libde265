@@ -1,3 +1,9 @@
+vlc-libde265 (0.1.0-1ppa4) unstable; urgency=low
+
+  * Fixed wrong package name in rules.
+
+ -- Joachim Bauch <bauch@struktur.de>  Wed, 02 Apr 2014 23:43:48 +0200
+
 vlc-libde265 (0.1.0-1ppa3) unstable; urgency=low
 
   * Implement "build-arch" and "build-indep" to fix lintian errors.
