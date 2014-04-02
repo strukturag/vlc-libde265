@@ -13,10 +13,6 @@
 #define N_(x) (x)
 #endif
 
-#ifndef MODULE_STRING
-#define MODULE_STRING __FILE__
-#endif
-
 #ifndef VLC_CODEC_HEVC
 #ifdef HAVE_VLC_HEVC
 #error "should have VLC_CODEC_HEVC with this version of VLC"

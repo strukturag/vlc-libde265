@@ -12,8 +12,8 @@ EXTRA_DIST = \
 
 lib_LTLIBRARIES = libde265_plugin.la
 
-libde265_plugin_la_CFLAGS = -Iinclude $(libde265_CFLAGS) $(vlc_CFLAGS)
-libde265_plugin_la_CPPFLAGS = -Iinclude $(libde265_CFLAGS) $(vlc_CFLAGS)
+libde265_plugin_la_CFLAGS = -Iinclude -DMODULE_STRING=\"de265\" $(libde265_CFLAGS) $(vlc_CFLAGS)
+libde265_plugin_la_CPPFLAGS = -Iinclude -DMODULE_STRING=\"de265\" $(libde265_CFLAGS) $(vlc_CFLAGS)
 libde265_plugin_la_LIBADD = $(libde265_LIBS) $(vlc_LIBS)
 libde265_plugin_la_LDFLAGS = -avoid-version -module -export-symbol-regex ^vlc_entry $(libde265_LDFLAGS) $(vlc_LDFLAGS)
 libde265_plugin_la_SOURCES = \
@@ -24,8 +24,8 @@ libde265_plugin_la_SOURCES = \
 if !HAVE_VLC_HEVC
   lib_LTLIBRARIES += libde265_mkv_plugin.la
 
-  libde265_mkv_plugin_la_CFLAGS = -DHAVE_ATTRIBUTE_PACKED -Iinclude $(vlc_CFLAGS)
-  libde265_mkv_plugin_la_CPPFLAGS = -DHAVE_ATTRIBUTE_PACKED -Iinclude $(vlc_CFLAGS)
+  libde265_mkv_plugin_la_CFLAGS = -DHAVE_ATTRIBUTE_PACKED -DMODULE_STRING=\"mkv\" -Iinclude $(vlc_CFLAGS)
+  libde265_mkv_plugin_la_CPPFLAGS = -DHAVE_ATTRIBUTE_PACKED -DMODULE_STRING=\"mkv\" -Iinclude $(vlc_CFLAGS)
   libde265_mkv_plugin_la_LIBADD = $(vlc_LIBS) -lebml -lmatroska
   libde265_mkv_plugin_la_LDFLAGS = -avoid-version -module -export-symbol-regex ^vlc_entry $(vlc_LDFLAGS)
   libde265_mkv_plugin_la_SOURCES = \
