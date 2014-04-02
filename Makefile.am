@@ -7,6 +7,7 @@ EXTRA_DIST = \
 	m4/empty.dir \
 	README.md \
 	prepare-package.sh \
+	debian/* \
 	src/demux/COPYING.LIB \
 	patches/vlc-2.1-37431af7ef-demux-mkv.diff \
 	patches/vlc-2.1-37431af7ef-demux-mp4.diff
