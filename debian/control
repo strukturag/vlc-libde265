@@ -3,8 +3,7 @@ Priority: optional
 Maintainer: Joachim Bauch <bauch@struktur.de>
 Build-Depends: debhelper (>= 6.0), libtool, automake, autoconf,
  pkg-config, libde265-dev (>= 0.6), libvlccore-dev,
- libvlccore-dev (>= 2.1) | libebml-dev,
- libvlccore-dev (>= 2.1) | libmatroska-dev
+ libebml-dev, libmatroska-dev
 Standards-Version: 3.8.3
 Section: video
 Homepage: https://github.com/strukturag/vlc-libde265
