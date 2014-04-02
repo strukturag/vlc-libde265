@@ -15,7 +15,7 @@ lib_LTLIBRARIES = libde265_plugin.la
 libde265_plugin_la_CFLAGS = -Iinclude $(libde265_CFLAGS) $(vlc_CFLAGS)
 libde265_plugin_la_CPPFLAGS = -Iinclude $(libde265_CFLAGS) $(vlc_CFLAGS)
 libde265_plugin_la_LIBADD = $(libde265_LIBS) $(vlc_LIBS)
-libde265_plugin_la_LDFLAGS = $(libde265_LDFLAGS) $(vlc_LDFLAGS)
+libde265_plugin_la_LDFLAGS = -avoid-version -module -export-symbol-regex ^vlc_entry $(libde265_LDFLAGS) $(vlc_LDFLAGS)
 libde265_plugin_la_SOURCES = \
 	src/codec/libde265dec.c \
 	include/libde265_plugin_common.h
@@ -27,7 +27,7 @@ if !HAVE_VLC_HEVC
   libde265_mkv_plugin_la_CFLAGS = -DHAVE_ATTRIBUTE_PACKED -Iinclude $(vlc_CFLAGS)
   libde265_mkv_plugin_la_CPPFLAGS = -DHAVE_ATTRIBUTE_PACKED -Iinclude $(vlc_CFLAGS)
   libde265_mkv_plugin_la_LIBADD = $(vlc_LIBS) -lebml -lmatroska
-  libde265_mkv_plugin_la_LDFLAGS = $(vlc_LDFLAGS)
+  libde265_mkv_plugin_la_LDFLAGS = -avoid-version -module -export-symbol-regex ^vlc_entry $(vlc_LDFLAGS)
   libde265_mkv_plugin_la_SOURCES = \
 		src/demux/vobsub.h \
 		src/demux/mp4/libmp4.c \
