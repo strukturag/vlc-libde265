@@ -20,6 +20,19 @@ If you fetched vlc-libde265 from GitHub, you will need to generate the
     $ ./autogen.sh
 
 
+## Dependencies
+
+In addition to a compiler, a couple of other packages must be installed
+in order to compile the plugin:
+- libvlccore-dev
+- libde265-dev (>= 0.6)
+- libebml-dev
+- libmatroska-dev
+
+These should be available from the package management on any recent
+version of Debian / Ubuntu.
+
+
 ## Patches
 
 See the `patches` folder for changes applied to the VLC source code of
