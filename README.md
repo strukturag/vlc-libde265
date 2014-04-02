@@ -7,6 +7,8 @@ for HEVC streams.
 
 ## Building
 
+[![Build Status](https://travis-ci.org/strukturag/vlc-libde265.png?branch=master)](https://travis-ci.org/strukturag/vlc-libde265)
+
 Execute the default `configure` / `make` steps:
 
     $ ./configure
