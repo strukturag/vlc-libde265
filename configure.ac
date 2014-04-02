@@ -13,6 +13,7 @@ AC_PROG_CC
 AC_PROG_CC_C99
 AC_PROG_INSTALL
 AC_PROG_LN_S
+PKG_PROG_PKG_CONFIG
 
 # Initialize automake stuff
 AM_INIT_AUTOMAKE([foreign])
