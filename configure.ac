@@ -1,0 +1,37 @@
+# Process this file with autoconf to produce a configure script.
+AC_PREREQ([2.68])
+AC_INIT([vlc-libde265], [0.1.0], [bauch@struktur.de])
+AC_CONFIG_SRCDIR([src/codec/libde265dec.c])
+AC_CONFIG_HEADERS([config.h])
+AC_CONFIG_MACRO_DIR([m4])
+AC_CANONICAL_SYSTEM
+LT_INIT
+
+# Checks for programs.
+AC_PROG_CXX
+AC_PROG_CC
+AC_PROG_CC_C99
+AC_PROG_INSTALL
+AC_PROG_LN_S
+
+# Initialize automake stuff
+AM_INIT_AUTOMAKE([foreign])
+
+PKG_CHECK_MODULES([libde265], [libde265 >= 0.6])
+PKG_CHECK_MODULES([vlc], [vlc-plugin >= 2.0])
+PKG_CHECK_MODULES([vlc212], [vlc-plugin >= 2.1],
+    [AC_DEFINE([HAVE_VLC_HEVC], [1], [Whether VLC with HEVC support was found.])
+     have_vlc_hevc="yes"],
+    [have_vlc_hevc="no"])
+
+AM_CONDITIONAL([HAVE_VLC_HEVC], [test "x$have_vlc_hevc" != "xno"])
+
+if eval "test $have_vlc_hevc != yes" ; then
+    AC_LANG_PUSH([C++])
+    AC_CHECK_HEADERS([ebml/EbmlVersion.h])
+    AC_CHECK_HEADERS([matroska/KaxTag.h])
+    AC_LANG_POP([C++])
+fi
+
+AC_CONFIG_FILES([Makefile])
+AC_OUTPUT

@@ -1,0 +1,84 @@
+Nur in src/demux/mkv/: .deps.
+Nur in src/demux/mkv/: .dirstamp.
+Nur in src/demux/mkv/: libde265_mkv_plugin_la-chapter_command.lo.
+Nur in src/demux/mkv/: libde265_mkv_plugin_la-chapter_command.o.
+Nur in src/demux/mkv/: libde265_mkv_plugin_la-chapters.lo.
+Nur in src/demux/mkv/: libde265_mkv_plugin_la-chapters.o.
+Nur in src/demux/mkv/: libde265_mkv_plugin_la-demux.lo.
+Nur in src/demux/mkv/: libde265_mkv_plugin_la-demux.o.
+Nur in src/demux/mkv/: libde265_mkv_plugin_la-Ebml_parser.lo.
+Nur in src/demux/mkv/: libde265_mkv_plugin_la-Ebml_parser.o.
+Nur in src/demux/mkv/: libde265_mkv_plugin_la-matroska_segment.lo.
+Nur in src/demux/mkv/: libde265_mkv_plugin_la-matroska_segment.o.
+Nur in src/demux/mkv/: libde265_mkv_plugin_la-matroska_segment_parse.lo.
+Nur in src/demux/mkv/: libde265_mkv_plugin_la-matroska_segment_parse.o.
+Nur in src/demux/mkv/: libde265_mkv_plugin_la-mkv.lo.
+Nur in src/demux/mkv/: libde265_mkv_plugin_la-mkv.o.
+Nur in src/demux/mkv/: libde265_mkv_plugin_la-stream_io_callback.lo.
+Nur in src/demux/mkv/: libde265_mkv_plugin_la-stream_io_callback.o.
+Nur in src/demux/mkv/: libde265_mkv_plugin_la-util.lo.
+Nur in src/demux/mkv/: libde265_mkv_plugin_la-util.o.
+Nur in src/demux/mkv/: libde265_mkv_plugin_la-virtual_segment.lo.
+Nur in src/demux/mkv/: libde265_mkv_plugin_la-virtual_segment.o.
+Nur in src/demux/mkv/: .libs.
+diff -ur ../vlc-2.1/modules/demux/mkv/matroska_segment.cpp src/demux/mkv/matroska_segment.cpp
+--- ../vlc-2.1/modules/demux/mkv/matroska_segment.cpp	2014-04-01 14:59:31.000000000 +0200
++++ src/demux/mkv/matroska_segment.cpp	2014-04-02 11:20:50.000000000 +0200
+@@ -259,7 +259,9 @@
+                      {vlc_meta_URL,         "URL",           0},
+                      {vlc_meta_Publisher,   "PUBLISHER",     0},
+                      {vlc_meta_EncodedBy,   "ENCODED_BY",    0},
++#if 0
+                      {vlc_meta_TrackTotal,  "TOTAL_PARTS",   0},
++#endif
+                      {vlc_meta_Title,       NULL,            0},
+ };
+ 
+diff -ur ../vlc-2.1/modules/demux/mkv/matroska_segment_parse.cpp src/demux/mkv/matroska_segment_parse.cpp
+--- ../vlc-2.1/modules/demux/mkv/matroska_segment_parse.cpp	2014-04-01 14:59:31.000000000 +0200
++++ src/demux/mkv/matroska_segment_parse.cpp	2014-04-02 12:20:39.000000000 +0200
+@@ -1349,11 +1349,6 @@
+         p_tk->fmt.i_codec = VLC_CODEC_VP8;
+         p_tk->b_pts_only = true;
+     }
+-    else if( !strncmp( p_tk->psz_codec, "V_VP9", 5 ) )
+-    {
+-        p_tk->fmt.i_codec = VLC_CODEC_VP9;
+-        fill_extra_data( p_tk, 0 );
+-    }
+     else if( !strncmp( p_tk->psz_codec, "V_MPEG4", 7 ) )
+     {
+         if( !strcmp( p_tk->psz_codec, "V_MPEG4/MS/V3" ) )
+diff -ur ../vlc-2.1/modules/demux/mkv/mkv.cpp src/demux/mkv/mkv.cpp
+--- ../vlc-2.1/modules/demux/mkv/mkv.cpp	2014-04-01 14:59:31.000000000 +0200
++++ src/demux/mkv/mkv.cpp	2014-04-02 12:09:35.000000000 +0200
+@@ -45,7 +45,7 @@
+ vlc_module_begin ()
+     set_shortname( "Matroska" )
+     set_description( N_("Matroska stream demuxer" ) )
+-    set_capability( "demux", 50 )
++    set_capability( "demux", 100 )
+     set_callbacks( Open, Close )
+     set_category( CAT_INPUT )
+     set_subcategory( SUBCAT_INPUT_DEMUX )
+@@ -190,7 +190,7 @@
+                             const uint8_t *p_peek;
+                             bool          file_ok = false;
+ #warning Memory leak!
+-                            std::string   s_url = vlc_path2uri( s_filename.c_str(), "file" );
++                            std::string   s_url = make_URI( s_filename.c_str(), "file" );
+                             stream_t      *p_file_stream = stream_UrlNew(
+                                                             p_demux,
+                                                             s_url.c_str() );
+diff -ur ../vlc-2.1/modules/demux/mkv/mkv.hpp src/demux/mkv/mkv.hpp
+--- ../vlc-2.1/modules/demux/mkv/mkv.hpp	2014-04-01 14:59:31.000000000 +0200
++++ src/demux/mkv/mkv.hpp	2014-04-02 11:19:58.000000000 +0200
+@@ -103,6 +103,8 @@
+ #   include <zlib.h>
+ #endif
+ 
++#include <libde265_plugin_common.h>
++
+ #define MKV_DEBUG 0
+ 
+ #define MATROSKA_COMPRESSION_NONE  -1

@@ -1,0 +1,19 @@
+Nur in src/demux/mp4/: .deps.
+Nur in src/demux/mp4/: .dirstamp.
+Nur in ../vlc-2.1/modules/demux/mp4/: id3genres.h.
+Nur in src/demux/mp4/: libde265_mkv_plugin_la-libmp4.lo.
+Nur in src/demux/mp4/: libde265_mkv_plugin_la-libmp4.o.
+diff -ur ../vlc-2.1/modules/demux/mp4/libmp4.h src/demux/mp4/libmp4.h
+--- ../vlc-2.1/modules/demux/mp4/libmp4.h	2014-04-01 14:59:31.000000000 +0200
++++ src/demux/mp4/libmp4.h	2014-04-02 12:15:07.000000000 +0200
+@@ -269,6 +269,8 @@
+ # define MP4_VERBOSE  1
+ #endif
+ 
++#include <libde265_plugin_common.h>
++
+ struct MP4_Box_s;
+ 
+ 
+Nur in src/demux/mp4/: .libs.
+Nur in ../vlc-2.1/modules/demux/mp4/: mp4.c.

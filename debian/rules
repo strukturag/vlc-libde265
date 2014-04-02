@@ -1,0 +1,76 @@
+#!/usr/bin/make -f
+#export DH_VERBOSE=1
+
+DEBIAN := $(shell pwd)/debian
+$DEB_HOST_MULTIARCH := $(shell dpkg-architecture -qDEB_HOST_MULTIARCH)
+
+configure: configure-stamp
+configure-stamp:
+	dh_testdir
+	# Add here commands to configure the package.
+	./autogen.sh
+	./configure --prefix=$(DEBIAN)/prefix
+	touch configure-stamp
+
+build: build-stamp
+
+build-stamp: configure-stamp 
+	dh_testdir
+
+	# Add here commands to compile the package.
+	$(MAKE)
+
+	touch $@
+
+clean:
+	dh_testdir
+	if [ -f build-stamp ]; then $(MAKE) clean ; fi
+	rm -rf $(DEBIAN)/prefix
+	rm -f configure-stamp
+	rm -f build-stamp
+
+install: build
+	dh_testdir
+	dh_testroot
+	dh_clean -k
+	dh_installdirs
+
+	# Add here commands to install the package
+	make install
+	mkdir -p $(DEBIAN)/vlc-libde265/usr/lib/vlc/plugins/codec/
+	cp $(DEBIAN)/prefix/lib/libde265_plugin.so $(DEBIAN)/vlc-libde265/usr/lib/vlc/plugins/codec/
+	if [ -e $(DEBIAN)/prefix/lib/libde265_mkv_plugin.so ]; then \
+		mkdir -p $(DEBIAN)/vlc-libde265/usr/lib/vlc/plugins/demux/; \
+		cp $(DEBIAN)/prefix/lib/libde265_mkv_plugin.so $(DEBIAN)/vlc-libde265/usr/lib/vlc/plugins/demux/; \
+	fi
+
+# Build architecture-independent files here.
+binary-indep: build install
+# We have nothing to do by default.
+
+# Build architecture-dependent files here.
+binary-arch: build install
+	dh_testdir
+	dh_testroot
+	dh_install
+	dh_installchangelogs 
+	dh_installdocs
+	dh_installexamples
+	dh_installinit
+	dh_installlogrotate
+	dh_installmenu
+	dh_link
+	dh_strip --dbg-package=vlc-libde265-dbg
+	dh_strip
+	dh_compress 
+	dh_fixperms
+	dh_makeshlibs
+	dh_installdeb
+	dh_shlibdeps
+	dh_gencontrol
+	dh_md5sums
+	dh_builddeb
+
+binary: binary-indep binary-arch
+.PHONY: build clean binary-indep binary-arch binary install configure
+

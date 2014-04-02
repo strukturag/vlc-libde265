@@ -1,0 +1,10 @@
+*.o
+*.lo
+.deps
+.dirstamp
+.libs
+Makefile
+*.la
+*.a
+*.so
+*.tar.gz
