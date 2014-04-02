@@ -9,23 +9,22 @@ Standards-Version: 3.8.3
 Section: libs
 Homepage: https://github.com/strukturag/vlc-libde265
 
-Package: vlc-libde265
+Package: vlc-plugin-libde265
 Section: libs
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends},
  libde265 (>= 0.6)
 Recommends: vlc
-Description: HEVC/H.265 Video Decoder (VLC plugin)
- HEVC/H.265 Video Decoder (VLC plugin) using libde265
- for decoding.
+Description: HEVC/H.265 video decoder plugin for VLC
+ HEVC/H.265 video decoder plugin for VLC using libde265 for decoding.
 
-Package: vlc-libde265-dbg
+Package: vlc-plugin-libde265-dbg
 Section: debug
 Architecture: any
-Depends: vlc-libde265 (= ${binary:Version}), ${shlibs:Depends}, ${misc:Depends}
-Description: HEVC/H.265 Video Decoder (VLC plugin) - debug symbols
- HEVC/H.265 Video Decoder (VLC plugin) using libde265
- for decoding.
+Depends: vlc-plugin-libde265 (= ${binary:Version}),
+ ${shlibs:Depends}, ${misc:Depends}
+Description: HEVC/H.265 video decoder plugin for VLC - debug symbols
+ HEVC/H.265 video decoder plugin for VLC using libde265 for decoding.
  .
- The debugging symbols for tracking down bugs in applications
- that use vlc-libde265 are provided by this package.
+ The debugging symbols for tracking down bugs in applications that use
+ vlc-plugin-libde265 are provided by this package.

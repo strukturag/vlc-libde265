@@ -1,3 +1,9 @@
+vlc-libde265 (0.1.0-1ppa2) unstable; urgency=low
+
+  * Rename binary package to have "plugin" in the name.
+
+ -- Joachim Bauch <bauch@struktur.de>  Wed, 02 Apr 2014 14:16:27 +0200
+
 vlc-libde265 (0.1.0-1ppa1) unstable; urgency=low
 
   * Initial release.
