@@ -6,11 +6,11 @@ Build-Depends: debhelper (>= 6.0), libtool, automake, autoconf,
  libvlccore-dev (>= 2.1) | libebml-dev,
  libvlccore-dev (>= 2.1) | libmatroska-dev
 Standards-Version: 3.8.3
-Section: libs
+Section: video
 Homepage: https://github.com/strukturag/vlc-libde265
 
 Package: vlc-plugin-libde265
-Section: libs
+Section: video
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends},
  libde265 (>= 0.6)
