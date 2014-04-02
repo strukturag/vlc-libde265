@@ -7,7 +7,6 @@ EXTRA_DIST = \
 	m4/empty.dir \
 	README.md \
 	prepare-package.sh \
-	debian/* \
 	src/demux/COPYING.LIB \
 	patches/*
 
