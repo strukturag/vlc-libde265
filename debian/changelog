@@ -1,3 +1,9 @@
+vlc-libde265 (0.1.1-1ppa1) unstable; urgency=low
+
+  * Drop frames if computer is too slow for decoding.
+
+ -- Joachim Bauch <bauch@struktur.de>  Thu, 10 Apr 2014 12:43:59 +0200
+
 vlc-libde265 (0.1.0-1ppa4) unstable; urgency=low
 
   * Fixed wrong package name in rules.
