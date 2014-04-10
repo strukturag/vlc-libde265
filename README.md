@@ -39,4 +39,10 @@ See the `patches` folder for changes applied to the VLC source code of
 the MKV demuxer to make it compile against VLC 2.0 in this plugin.
 
 
+## Packages
+
+Binary packages for Ubuntu are available on Launchpad:
+https://launchpad.net/~strukturag/+archive/libde265
+
+
 Copyright (c) 2014 struktur AG
