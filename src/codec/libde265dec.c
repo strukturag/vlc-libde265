@@ -60,6 +60,9 @@ vlc_module_end ()
 struct decoder_sys_t
 {
     de265_decoder_context *ctx;
+
+    int late_frames;
+    mtime_t late_frames_start;
 };
 
 /****************************************************************************
@@ -67,18 +70,50 @@ struct decoder_sys_t
  ****************************************************************************/
 static picture_t *Decode(decoder_t *dec, block_t **pp_block)
 {
-    de265_decoder_context *ctx = dec->p_sys->ctx;
+    decoder_sys_t *sys = dec->p_sys;
+    de265_decoder_context *ctx = sys->ctx;
+    int drawpicture;
+    int prerolling;
 
     block_t *block = *pp_block;
     if (!block)
         return NULL;
 
-    if (block->i_flags & BLOCK_FLAG_DISCONTINUITY) {
-        de265_reset(ctx);
+    if (block->i_flags & (BLOCK_FLAG_DISCONTINUITY|BLOCK_FLAG_CORRUPTED)) {
+        sys->late_frames = 0;
+        if (block->i_flags & BLOCK_FLAG_DISCONTINUITY) {
+            de265_reset(ctx);
+        }
+        goto error;
     }
 
-    if (block->i_flags & BLOCK_FLAG_CORRUPTED) {
+    if ((prerolling = (block->i_flags & BLOCK_FLAG_PREROLL))) {
+        sys->late_frames = 0;
+        drawpicture = 0;
+    } else {
+        drawpicture = 1;
+    }
+
+    if (!dec->b_pace_control && (sys->late_frames > 0) &&
+        (mdate() - sys->late_frames_start > INT64_C(5000000))) {
+        sys->late_frames--;
+        msg_Err(dec, "more than 5 seconds of late video -> "
+                "dropping frame (computer too slow ?)");
         goto error;
+    }
+
+    if (!dec->b_pace_control &&
+        (sys->late_frames > 4)) {
+        drawpicture = 0;
+        if (sys->late_frames < 12) {
+            // TODO(fancycode): tell decoder to skip frame
+        } else {
+            /* picture too late, won't decode
+             * but break picture until a new I, and for mpeg4 ...*/
+            sys->late_frames--; /* needed else it will never be decrease */
+            msg_Warn(dec, "More than 4 late frames, dropping frame");
+            goto error;
+        }
     }
 
     de265_error err;
@@ -115,35 +150,58 @@ static picture_t *Decode(decoder_t *dec, block_t **pp_block)
 
     int more;
     const struct de265_image *image;
+    mtime_t pts;
+    // decode (and skip) all available images (e.g. when prerolling
+    // after a seek)
     do {
-        err = de265_decode(ctx, &more);
-        switch (err) {
-        case DE265_OK:
-            break;
-        
-        case DE265_ERROR_IMAGE_BUFFER_FULL:
-        case DE265_ERROR_WAITING_FOR_INPUT_DATA:
-            // not really an error
-            more = 0;
-            break;
-        
-        default:
-            if (!de265_isOK(err)) {
-                msg_Err(dec, "Failed to decode frame: %s (%d)", de265_get_error_text(err), err);
-                return NULL;
-            }
-        }
-        
-        image = de265_get_next_picture(ctx);
-    } while (image == NULL && more);
-    if (!image) {
-        return NULL;
-    }
+        // decode data until we get an image or no more data is
+        // available for decoding
+        do {
+            err = de265_decode(ctx, &more);
+            switch (err) {
+            case DE265_OK:
+                break;
 
-    if (de265_get_chroma_format(image) != de265_chroma_420) {
-        msg_Err(dec, "Unsupported output colorspace %d", de265_get_chroma_format(image));
-        return NULL;
-    }
+            case DE265_ERROR_IMAGE_BUFFER_FULL:
+            case DE265_ERROR_WAITING_FOR_INPUT_DATA:
+                // not really an error
+                more = 0;
+                break;
+
+            default:
+                if (!de265_isOK(err)) {
+                    msg_Err(dec, "Failed to decode frame: %s (%d)", de265_get_error_text(err), err);
+                    return NULL;
+                }
+            }
+
+            image = de265_get_next_picture(ctx);
+        } while (image == NULL && more);
+        if (!image) {
+            return NULL;
+        }
+
+        if (de265_get_chroma_format(image) != de265_chroma_420) {
+            msg_Err(dec, "Unsupported output colorspace %d", de265_get_chroma_format(image));
+            return NULL;
+        }
+
+        pts = de265_get_image_PTS(image);
+
+        mtime_t display_date = 0;
+        if (!prerolling) {
+            display_date = decoder_GetDisplayDate(dec, pts);
+        }
+
+        if (display_date > 0 && display_date <= mdate()) {
+            sys->late_frames++;
+            if (sys->late_frames == 1) {
+                sys->late_frames_start = mdate();
+            }
+        } else {
+            sys->late_frames = 0;
+        }
+    } while (!drawpicture);
 
     video_format_t *v = &dec->fmt_out.video;
     int width = de265_get_image_width(image, 0);
@@ -173,7 +231,7 @@ static picture_t *Decode(decoder_t *dec, block_t **pp_block)
     }
 
     pic->b_progressive = true; /* codec does not support interlacing */
-    pic->date = de265_get_image_PTS(image);
+    pic->date = pts;
 
     return pic;
 
@@ -227,6 +285,8 @@ static int Open(vlc_object_t *p_this)
     dec->fmt_out.video.i_height = dec->fmt_in.video.i_height;
     dec->fmt_out.i_codec = VLC_CODEC_I420;
     dec->b_need_packetized = true;
+
+    sys->late_frames = 0;
 
     return VLC_SUCCESS;
 }
