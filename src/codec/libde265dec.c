@@ -120,23 +120,31 @@ static picture_t *Decode(decoder_t *dec, block_t **pp_block)
     uint8_t *p_buffer = block->p_buffer;
     size_t i_buffer = block->i_buffer;
     if (i_buffer > 0) {
-        while (i_buffer >= 4) {
-            uint32_t length = (p_buffer[0]<<24) + (p_buffer[1]<<16) + (p_buffer[2]<<8) + p_buffer[3];
-            p_buffer += 4;
-            i_buffer -= 4;
-            if (length > i_buffer) {
-                msg_Err(dec, "Buffer underrun while pushing data (%d > %ld)", length, i_buffer);
-                goto error;
-            }
+        if (dec->fmt_in.b_packetized) {
+            while (i_buffer >= 4) {
+                uint32_t length = (p_buffer[0]<<24) + (p_buffer[1]<<16) + (p_buffer[2]<<8) + p_buffer[3];
+                p_buffer += 4;
+                i_buffer -= 4;
+                if (length > i_buffer) {
+                    msg_Err(dec, "Buffer underrun while pushing data (%d > %ld)", length, i_buffer);
+                    goto error;
+                }
 
-            err = de265_push_NAL(ctx, p_buffer, length, block->i_pts, NULL);
+                err = de265_push_NAL(ctx, p_buffer, length, block->i_pts, NULL);
+                if (!de265_isOK(err)) {
+                    msg_Err(dec, "Failed to push data: %s (%d)", de265_get_error_text(err), err);
+                    goto error;
+                }
+
+                p_buffer += length;
+                i_buffer -= length;
+            }
+        } else {
+            err = de265_push_data(ctx, p_buffer, i_buffer, block->i_pts, NULL);
             if (!de265_isOK(err)) {
                 msg_Err(dec, "Failed to push data: %s (%d)", de265_get_error_text(err), err);
                 goto error;
             }
-            
-            p_buffer += length;
-            i_buffer -= length;
         }
     } else {
         err = de265_flush_data(ctx);
@@ -207,6 +215,10 @@ static picture_t *Decode(decoder_t *dec, block_t **pp_block)
     int width = de265_get_image_width(image, 0);
     int height = de265_get_image_height(image, 0);
 
+    if (width != (int) v->i_width || height != (int) v->i_height) {
+        v->i_width = width;
+        v->i_height = height;
+    }
     if (width != (int) v->i_visible_width || height != (int) v->i_visible_height) {
         v->i_visible_width = width;
         v->i_visible_height = height;
