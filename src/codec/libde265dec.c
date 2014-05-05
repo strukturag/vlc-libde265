@@ -109,6 +109,9 @@ static picture_t *Decode(decoder_t *dec, block_t **pp_block)
                     goto error;
                 }
             }
+#if LIBDE265_NUMERIC_VERSION >= 0x00070000
+            de265_push_end_of_NAL(ctx);
+#endif
             do {
                 err = de265_decode(ctx, &more);
                 switch (err) {
