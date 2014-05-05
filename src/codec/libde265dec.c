@@ -127,9 +127,7 @@ static picture_t *Decode(decoder_t *dec, block_t **pp_block)
                         goto error;
                     }
                 }
-
-                image = de265_get_next_picture(ctx);
-            } while (image == NULL && more);
+            } while (more);
         }
     }
 
