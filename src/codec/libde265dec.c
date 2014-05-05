@@ -61,6 +61,8 @@ struct decoder_sys_t
 {
     de265_decoder_context *ctx;
 
+    bool check_extra;
+    bool packetized;
     int late_frames;
     mtime_t late_frames_start;
 };
@@ -74,6 +76,9 @@ static picture_t *Decode(decoder_t *dec, block_t **pp_block)
     de265_decoder_context *ctx = sys->ctx;
     int drawpicture;
     int prerolling;
+    de265_error err;
+    int more;
+    const struct de265_image *image;
 
     block_t *block = *pp_block;
     if (!block)
@@ -85,6 +90,47 @@ static picture_t *Decode(decoder_t *dec, block_t **pp_block)
             de265_reset(ctx);
         }
         goto error;
+    }
+
+    if (sys->check_extra) {
+        int extra_length = dec->fmt_in.i_extra;
+        sys->check_extra = false;
+        if (extra_length > 0) {
+            unsigned char *extra = (unsigned char *) dec->fmt_in.p_extra;
+            if (extra_length > 3 && extra != NULL && (extra[0] || extra[1] || extra[2] > 1)) {
+                sys->packetized = true;
+                msg_Dbg(dec, "Assuming packetized data");
+            } else {
+                sys->packetized = false;
+                msg_Dbg(dec, "Assuming non-packetized data");
+                err = de265_push_data(ctx, extra, extra_length, 0, NULL);
+                if (!de265_isOK(err)) {
+                    msg_Err(dec, "Failed to push extra data: %s (%d)", de265_get_error_text(err), err);
+                    goto error;
+                }
+            }
+            do {
+                err = de265_decode(ctx, &more);
+                switch (err) {
+                case DE265_OK:
+                    break;
+
+                case DE265_ERROR_IMAGE_BUFFER_FULL:
+                case DE265_ERROR_WAITING_FOR_INPUT_DATA:
+                    // not really an error
+                    more = 0;
+                    break;
+
+                default:
+                    if (!de265_isOK(err)) {
+                        msg_Err(dec, "Failed to decode extra data: %s (%d)", de265_get_error_text(err), err);
+                        goto error;
+                    }
+                }
+
+                image = de265_get_next_picture(ctx);
+            } while (image == NULL && more);
+        }
     }
 
     if ((prerolling = (block->i_flags & BLOCK_FLAG_PREROLL))) {
@@ -116,11 +162,10 @@ static picture_t *Decode(decoder_t *dec, block_t **pp_block)
         }
     }
 
-    de265_error err;
     uint8_t *p_buffer = block->p_buffer;
     size_t i_buffer = block->i_buffer;
     if (i_buffer > 0) {
-        if (dec->fmt_in.b_packetized) {
+        if (sys->packetized) {
             while (i_buffer >= 4) {
                 uint32_t length = (p_buffer[0]<<24) + (p_buffer[1]<<16) + (p_buffer[2]<<8) + p_buffer[3];
                 p_buffer += 4;
@@ -156,8 +201,6 @@ static picture_t *Decode(decoder_t *dec, block_t **pp_block)
     block_Release(block);
     *pp_block = NULL;
 
-    int more;
-    const struct de265_image *image;
     mtime_t pts;
     // decode (and skip) all available images (e.g. when prerolling
     // after a seek)
@@ -298,6 +341,8 @@ static int Open(vlc_object_t *p_this)
     dec->fmt_out.i_codec = VLC_CODEC_I420;
     dec->b_need_packetized = true;
 
+    sys->check_extra = true;
+    sys->packetized = dec->fmt_in.b_packetized;
     sys->late_frames = 0;
 
     return VLC_SUCCESS;
