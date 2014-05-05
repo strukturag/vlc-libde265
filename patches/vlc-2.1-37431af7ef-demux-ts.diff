@@ -1,0 +1,42 @@
+--- ../vlc-2.1/modules/demux/ts.c	2014-04-10 12:27:29.000000000 +0200
++++ src/demux/ts.c	2014-05-05 17:06:18.000000000 +0200
+@@ -63,6 +63,8 @@
+ 
+ #include "../mux/mpeg/dvbpsi_compat.h"
+ 
++#include <libde265_plugin_common.h>
++
+ #undef TS_DEBUG
+ VLC_FORMAT(1, 2) static void ts_debug(const char *format, ...)
+ {
+@@ -2403,6 +2405,9 @@
+     case 0x1B:  /* H264 <- check transport syntax/needed descriptor */
+         es_format_Init( fmt, VIDEO_ES, VLC_CODEC_H264 );
+         break;
++    case 0x24:  /* HEVC */
++        es_format_Init( fmt, VIDEO_ES, VLC_CODEC_HEVC );
++        break;
+     case 0x42:  /* CAVS (Chinese AVS) */
+         es_format_Init( fmt, VIDEO_ES, VLC_CODEC_CAVS );
+         break;
+@@ -3102,7 +3107,7 @@
+         /* */
+         if( i_start > 0 )
+             vlc_epg_AddEvent( p_epg, i_start, i_duration, psz_name, psz_text,
+-                              *psz_extra ? psz_extra : NULL, i_min_age );
++                              *psz_extra ? psz_extra : NULL );
+ 
+         /* Update "now playing" field */
+         if( p_evt->i_running_status == 0x04 && i_start > 0 )
+@@ -3638,6 +3643,11 @@
+         p_fmt->b_packetized = true;
+         p_fmt->i_codec = VLC_CODEC_302M;
+     }
++    else if( PMTEsHasRegistration( p_demux, p_es, "HEVC" ) )
++    {
++        p_fmt->i_cat = VIDEO_ES;
++        p_fmt->i_codec = VLC_CODEC_HEVC;
++    }
+     else
+     {
+         /* Subtitle/Teletext/VBI fallbacks */

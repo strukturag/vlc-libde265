@@ -54,3 +54,20 @@ if !HAVE_VLC_HEVC
 		include/libde265_plugin_common.h \
 		include/vlc_codecs.h
 endif
+
+# older versions of vlc don't know about HEVC content in MPEG-TS
+if !HAVE_VLC_HEVC_TS
+  lib_LTLIBRARIES += libde265_ts_plugin.la
+
+  libde265_ts_plugin_la_CFLAGS = -DHAVE_ATTRIBUTE_PACKED -DMODULE_STRING=\"ts\" -Iinclude $(vlc_CFLAGS)  $(libdvbpsi_CFLAGS) -Wno-deprecated-declarations
+  libde265_ts_plugin_la_CPPFLAGS = -DHAVE_ATTRIBUTE_PACKED -DMODULE_STRING=\"ts\" -Iinclude $(vlc_CFLAGS) $(libdvbpsi_CFLAGS)
+  libde265_ts_plugin_la_LIBADD = $(vlc_LIBS) $(libdvbpsi_LIBS)
+  libde265_ts_plugin_la_LDFLAGS = -avoid-version -module -export-symbol-regex ^vlc_entry $(vlc_LDFLAGS)
+  libde265_ts_plugin_la_SOURCES = \
+		src/demux/ts.c \
+		src/mux/mpeg/csa.c \
+		src/mux/mpeg/csa.h \
+		src/mux/mpeg/dvbpsi_compat.h \
+		include/libde265_plugin_common.h \
+		include/vlc_codecs.h
+endif

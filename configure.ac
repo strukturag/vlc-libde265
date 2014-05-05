@@ -44,14 +44,23 @@ PKG_CHECK_MODULES([vlc212], [vlc-plugin >= 2.1],
     [AC_DEFINE([HAVE_VLC_HEVC], [1], [Whether VLC with HEVC support was found.])
      have_vlc_hevc="yes"],
     [have_vlc_hevc="no"])
+PKG_CHECK_MODULES([vlc220], [vlc-plugin >= 2.2],
+    [AC_DEFINE([HAVE_VLC_HEVC_TS], [1], [Whether VLC with HEVC in MPEG-TS support was found.])
+     have_vlc_hevc_ts="yes"],
+    [have_vlc_hevc_ts="no"])
 
 AM_CONDITIONAL([HAVE_VLC_HEVC], [test "x$have_vlc_hevc" != "xno"])
+AM_CONDITIONAL([HAVE_VLC_HEVC_TS], [test "x$have_vlc_hevc_ts" != "xno"])
 
 if eval "test $have_vlc_hevc != yes" ; then
     AC_LANG_PUSH([C++])
     AC_CHECK_HEADERS([ebml/EbmlVersion.h])
     AC_CHECK_HEADERS([matroska/KaxTag.h])
     AC_LANG_POP([C++])
+fi
+
+if eval "test $have_vlc_hevc_ts != yes" ; then
+PKG_CHECK_MODULES([libdvbpsi], [libdvbpsi])
 fi
 
 AC_CONFIG_FILES([Makefile])
