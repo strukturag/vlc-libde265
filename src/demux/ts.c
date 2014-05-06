@@ -3106,8 +3106,13 @@ static void EITCallBack( demux_t *p_demux,
 
         /* */
         if( i_start > 0 )
+#ifdef HAVE_VLC_HEVC
+            vlc_epg_AddEvent( p_epg, i_start, i_duration, psz_name, psz_text,
+                              *psz_extra ? psz_extra : NULL, i_min_age );
+#else
             vlc_epg_AddEvent( p_epg, i_start, i_duration, psz_name, psz_text,
                               *psz_extra ? psz_extra : NULL );
+#endif
 
         /* Update "now playing" field */
         if( p_evt->i_running_status == 0x04 && i_start > 0 )

@@ -1,5 +1,5 @@
 --- ../vlc-2.1/modules/demux/ts.c	2014-04-10 12:27:29.000000000 +0200
-+++ src/demux/ts.c	2014-05-06 12:05:37.000000000 +0200
++++ src/demux/ts.c	2014-05-06 13:38:30.000000000 +0200
 @@ -63,6 +63,8 @@
  
  #include "../mux/mpeg/dvbpsi_compat.h"
@@ -28,16 +28,21 @@
      case 0x42:  /* CAVS (Chinese AVS) */
          es_format_Init( fmt, VIDEO_ES, VLC_CODEC_CAVS );
          break;
-@@ -3102,7 +3107,7 @@
+@@ -3101,8 +3106,13 @@
+ 
          /* */
          if( i_start > 0 )
++#ifdef HAVE_VLC_HEVC
              vlc_epg_AddEvent( p_epg, i_start, i_duration, psz_name, psz_text,
--                              *psz_extra ? psz_extra : NULL, i_min_age );
+                               *psz_extra ? psz_extra : NULL, i_min_age );
++#else
++            vlc_epg_AddEvent( p_epg, i_start, i_duration, psz_name, psz_text,
 +                              *psz_extra ? psz_extra : NULL );
++#endif
  
          /* Update "now playing" field */
          if( p_evt->i_running_status == 0x04 && i_start > 0 )
-@@ -3638,6 +3643,11 @@
+@@ -3638,6 +3648,11 @@
          p_fmt->b_packetized = true;
          p_fmt->i_codec = VLC_CODEC_302M;
      }
