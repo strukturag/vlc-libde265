@@ -160,7 +160,7 @@ vlc_module_begin ()
 
     add_obsolete_bool( "ts-silent" );
 
-    set_capability( "demux", 10 )
+    set_capability( "demux", 50 )
     set_callbacks( Open, Close )
     add_shortcut( "ts" )
 vlc_module_end ()
