@@ -63,6 +63,7 @@ struct decoder_sys_t
 
     bool check_extra;
     bool packetized;
+    int length_size;
     int late_frames;
     mtime_t late_frames_start;
 };
@@ -99,7 +100,10 @@ static picture_t *Decode(decoder_t *dec, block_t **pp_block)
             unsigned char *extra = (unsigned char *) dec->fmt_in.p_extra;
             if (extra_length > 3 && extra != NULL && (extra[0] || extra[1] || extra[2] > 1)) {
                 sys->packetized = true;
-                msg_Dbg(dec, "Assuming packetized data");
+                if (extra_length > 21) {
+                    sys->length_size = (extra[21] & 3) + 1;
+                }
+                msg_Dbg(dec, "Assuming packetized data (%d bytes length)", sys->length_size);
             } else {
                 sys->packetized = false;
                 msg_Dbg(dec, "Assuming non-packetized data");
@@ -167,10 +171,15 @@ static picture_t *Decode(decoder_t *dec, block_t **pp_block)
     size_t i_buffer = block->i_buffer;
     if (i_buffer > 0) {
         if (sys->packetized) {
-            while (i_buffer >= 4) {
-                uint32_t length = (p_buffer[0]<<24) + (p_buffer[1]<<16) + (p_buffer[2]<<8) + p_buffer[3];
-                p_buffer += 4;
-                i_buffer -= 4;
+            while (i_buffer >= sys->length_size) {
+                int i;
+                uint32_t length = 0;
+                for (i=0; i<sys->length_size; i++) {
+                    length = (length << 8) | p_buffer[i];
+                }
+
+                p_buffer += sys->length_size;
+                i_buffer -= sys->length_size;
                 if (length > i_buffer) {
                     msg_Err(dec, "Buffer underrun while pushing data (%d > %ld)", length, i_buffer);
                     goto error;
@@ -343,6 +352,7 @@ static int Open(vlc_object_t *p_this)
     dec->b_need_packetized = true;
 
     sys->check_extra = true;
+    sys->length_size = 4;  // XXX: this should always come from the "extra" data
     sys->packetized = dec->fmt_in.b_packetized;
     sys->late_frames = 0;
 
