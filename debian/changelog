@@ -1,3 +1,9 @@
+vlc-libde265 (0.1.2-2ppa1) unstable; urgency=low
+
+  * Install TS demuxer if available.
+
+ -- Joachim Bauch <bauch@struktur.de>  Tue, 06 May 2014 11:24:00 +0200
+
 vlc-libde265 (0.1.2-1ppa1) unstable; urgency=low
 
   * Support decoding of MPEG-TS containing HEVC video.
