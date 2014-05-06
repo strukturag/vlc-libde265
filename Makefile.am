@@ -64,6 +64,7 @@ if !HAVE_VLC_HEVC_TS
   libde265_ts_plugin_la_LIBADD = $(vlc_LIBS) $(libdvbpsi_LIBS)
   libde265_ts_plugin_la_LDFLAGS = -avoid-version -module -export-symbol-regex ^vlc_entry $(vlc_LDFLAGS)
   libde265_ts_plugin_la_SOURCES = \
+		src/demux/dvb-text.h \
 		src/demux/ts.c \
 		src/mux/mpeg/csa.c \
 		src/mux/mpeg/csa.h \
