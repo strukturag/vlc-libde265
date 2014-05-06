@@ -1,3 +1,10 @@
+vlc-libde265 (0.1.2-1ppa1) unstable; urgency=low
+
+  * Support decoding of MPEG-TS containing HEVC video.
+  * Evaluate "extra" data to check if stream is packetized.
+
+ -- Joachim Bauch <bauch@struktur.de>  Tue, 06 May 2014 11:08:17 +0200
+
 vlc-libde265 (0.1.1-1ppa1) unstable; urgency=low
 
   * Drop frames if computer is too slow for decoding.
