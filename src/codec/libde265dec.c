@@ -162,7 +162,7 @@ static picture_t *Decode(decoder_t *dec, block_t **pp_block)
     }
 
     if (!dec->b_pace_control && (sys->late_frames > 0) &&
-        (mdate() - sys->late_frames_start > INT64_C(LATE_FRAMES_DROP_ALWAYS_AGE*1000000))) {
+        (mdate() - sys->late_frames_start > LATE_FRAMES_DROP_ALWAYS_AGE*CLOCK_FREQ)) {
         sys->late_frames--;
         msg_Err(dec, "more than %d seconds of late video -> "
                 "dropping frame (computer too slow ?)", LATE_FRAMES_DROP_ALWAYS_AGE);
