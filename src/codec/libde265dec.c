@@ -78,7 +78,7 @@ static picture_t *Decode(decoder_t *dec, block_t **pp_block)
     bool drawpicture;
     bool prerolling;
     de265_error err;
-    int more;
+    int can_decode_more;
     const struct de265_image *image;
 
     block_t *block = *pp_block;
@@ -117,7 +117,7 @@ static picture_t *Decode(decoder_t *dec, block_t **pp_block)
             de265_push_end_of_NAL(ctx);
 #endif
             do {
-                err = de265_decode(ctx, &more);
+                err = de265_decode(ctx, &can_decode_more);
                 switch (err) {
                 case DE265_OK:
                     break;
@@ -125,7 +125,7 @@ static picture_t *Decode(decoder_t *dec, block_t **pp_block)
                 case DE265_ERROR_IMAGE_BUFFER_FULL:
                 case DE265_ERROR_WAITING_FOR_INPUT_DATA:
                     // not really an error
-                    more = 0;
+                    can_decode_more = 0;
                     break;
 
                 default:
@@ -134,7 +134,7 @@ static picture_t *Decode(decoder_t *dec, block_t **pp_block)
                         goto error;
                     }
                 }
-            } while (more);
+            } while (can_decode_more);
         }
     }
 
@@ -218,7 +218,7 @@ static picture_t *Decode(decoder_t *dec, block_t **pp_block)
         // decode data until we get an image or no more data is
         // available for decoding
         do {
-            err = de265_decode(ctx, &more);
+            err = de265_decode(ctx, &can_decode_more);
             switch (err) {
             case DE265_OK:
                 break;
@@ -226,7 +226,7 @@ static picture_t *Decode(decoder_t *dec, block_t **pp_block)
             case DE265_ERROR_IMAGE_BUFFER_FULL:
             case DE265_ERROR_WAITING_FOR_INPUT_DATA:
                 // not really an error
-                more = 0;
+                can_decode_more = 0;
                 break;
 
             default:
@@ -237,7 +237,7 @@ static picture_t *Decode(decoder_t *dec, block_t **pp_block)
             }
 
             image = de265_get_next_picture(ctx);
-        } while (image == NULL && more);
+        } while (image == NULL && can_decode_more);
         if (!image) {
             return NULL;
         }
