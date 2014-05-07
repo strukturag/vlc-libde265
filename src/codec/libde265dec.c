@@ -189,7 +189,7 @@ static picture_t *Decode(decoder_t *dec, block_t **pp_block)
     size_t i_buffer = block->i_buffer;
     if (i_buffer > 0) {
         if (sys->packetized) {
-            while (i_buffer >= sys->length_size) {
+            while (i_buffer >= (size_t) sys->length_size) {
                 int i;
                 uint32_t length = 0;
                 for (i=0; i<sys->length_size; i++) {
