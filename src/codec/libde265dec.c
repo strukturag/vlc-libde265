@@ -77,11 +77,11 @@ struct decoder_sys_t
 {
     de265_decoder_context *ctx;
 
-    bool check_extra;
-    bool packetized;
+    mtime_t late_frames_start;
     int length_size;
     int late_frames;
-    mtime_t late_frames_start;
+    bool check_extra;
+    bool packetized;
 };
 
 /****************************************************************************
