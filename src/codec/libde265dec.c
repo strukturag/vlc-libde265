@@ -319,9 +319,7 @@ static picture_t *Decode(decoder_t *dec, block_t **pp_block)
     return pic;
 
 error:
-    if (*pp_block != NULL) {
-        block_Release(*pp_block);
-    }
+    block_Release(*pp_block);
     *pp_block = NULL;
     return NULL;
 }
