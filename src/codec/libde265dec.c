@@ -62,7 +62,7 @@ static void Close(vlc_object_t *);
  *****************************************************************************/
 
 vlc_module_begin ()
-    set_shortname("libde265dec")
+    set_shortname(N_("libde265dec"))
     set_description(N_("HEVC/H.265 video decoder using libde265"))
     set_capability("decoder", 200)
     set_callbacks(Open, Close)
