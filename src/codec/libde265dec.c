@@ -351,15 +351,12 @@ static int Open(vlc_object_t *p_this)
     // might get blocked while waiting for dependent data. Having more
     // threads increases decoding speed by about 10%.
     int threads = __MIN(vlc_GetCPUCount() * 2, MAX_THREAD_COUNT);
-    if (threads > 1) {
-        de265_error err;
-        err = de265_start_worker_threads(sys->ctx, threads);
-        if (!de265_isOK(err)) {
-            // don't report to caller, decoding will work anyway...
-            msg_Err(dec, "Failed to start worker threads: %s (%d)", de265_get_error_text(err), err);
-        } else {
-            msg_Dbg(p_this, "started %d worker threads", threads);
-        }
+    de265_error err = de265_start_worker_threads(sys->ctx, threads);
+    if (!de265_isOK(err)) {
+        // don't report to caller, decoding will work anyway...
+        msg_Err(dec, "Failed to start worker threads: %s (%d)", de265_get_error_text(err), err);
+    } else {
+        msg_Dbg(p_this, "started %d worker threads", threads);
     }
 
     dec->pf_decode_video = Decode;
