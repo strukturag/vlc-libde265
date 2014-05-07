@@ -103,7 +103,7 @@ extern "C" {
 #   include <zlib.h>
 #endif
 
-#include <libde265_plugin_common.h>
+#include "../../../include/libde265_plugin_common.h"
 
 #define MKV_DEBUG 0
 

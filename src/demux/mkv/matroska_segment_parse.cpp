@@ -32,7 +32,7 @@ extern "C" {
 #include "../vobsub.h"
 }
 
-#include <vlc_codecs.h>
+#include "../../../include/vlc_codecs.h"
 
 /* GetFourCC helper */
 #define GetFOURCC( p )  __GetFOURCC( (uint8_t*)p )

@@ -269,7 +269,7 @@
 # define MP4_VERBOSE  1
 #endif
 
-#include <libde265_plugin_common.h>
+#include "../../../include/libde265_plugin_common.h"
 
 struct MP4_Box_s;
 

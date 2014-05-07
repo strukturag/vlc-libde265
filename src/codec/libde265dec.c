@@ -31,9 +31,9 @@
 #include <vlc_plugin.h>
 #include <vlc_codec.h>
 
-#include <libde265_plugin_common.h>
-
 #include <libde265/de265.h>
+
+#include "../../include/libde265_plugin_common.h"
 
 /****************************************************************************
  * Local prototypes

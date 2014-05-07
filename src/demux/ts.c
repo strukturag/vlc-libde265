@@ -63,7 +63,7 @@
 
 #include "../mux/mpeg/dvbpsi_compat.h"
 
-#include <libde265_plugin_common.h>
+#include "../../include/libde265_plugin_common.h"
 
 #undef TS_DEBUG
 VLC_FORMAT(1, 2) static void ts_debug(const char *format, ...)
