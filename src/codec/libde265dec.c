@@ -35,6 +35,22 @@
 
 #include "../../include/libde265_plugin_common.h"
 
+// Default size of length headers for packetized streams.
+// Should always come from the "extra" data.
+#define DEFAULT_LENGTH_SIZE     4
+
+// Maximum number of threads to use
+#define MAX_THREAD_COUNT        32
+
+// Drop all frames if late frames were available for more than 5 seconds
+#define LATE_FRAMES_DROP_ALWAYS_AGE 5
+
+// Tell decoder to skip decoding if more than 4 late frames
+#define LATE_FRAMES_DROP_DECODER    4
+
+// Don't pass data to decoder if more than 12 late frames
+#define LATE_FRAMES_DROP_HARD       12
+
 /****************************************************************************
  * Local prototypes
  ****************************************************************************/
@@ -146,23 +162,25 @@ static picture_t *Decode(decoder_t *dec, block_t **pp_block)
     }
 
     if (!dec->b_pace_control && (sys->late_frames > 0) &&
-        (mdate() - sys->late_frames_start > INT64_C(5000000))) {
+        (mdate() - sys->late_frames_start > INT64_C(LATE_FRAMES_DROP_ALWAYS_AGE*1000000))) {
         sys->late_frames--;
-        msg_Err(dec, "more than 5 seconds of late video -> "
-                "dropping frame (computer too slow ?)");
+        msg_Err(dec, "more than %d seconds of late video -> "
+                "dropping frame (computer too slow ?)", LATE_FRAMES_DROP_ALWAYS_AGE);
         goto error;
     }
 
     if (!dec->b_pace_control &&
-        (sys->late_frames > 4)) {
+        (sys->late_frames > LATE_FRAMES_DROP_DECODER)) {
         drawpicture = false;
-        if (sys->late_frames < 12) {
-            // TODO(fancycode): tell decoder to skip frame
+        if (sys->late_frames < LATE_FRAMES_DROP_HARD) {
+            // we could tell the decoder to skip frame, this will be
+            // available in a later version of libde265.
+            // for now, pass to decoder...
         } else {
-            /* picture too late, won't decode
-             * but break picture until a new I, and for mpeg4 ...*/
+            // picture too late, won't decode, but break picture until
+            // a new keyframe is available
             sys->late_frames--; /* needed else it will never be decrease */
-            msg_Warn(dec, "More than 4 late frames, dropping frame");
+            msg_Warn(dec, "More than %d late frames, dropping frame", LATE_FRAMES_DROP_DECODER);
             goto error;
         }
     }
@@ -331,7 +349,10 @@ static int Open(vlc_object_t *p_this)
         return VLC_EGENERIC;
     }
 
-    int threads = __MIN(vlc_GetCPUCount() * 2, 32);
+    // NOTE: We start more threads than cores for now, as some threads
+    // might get blocked while waiting for dependent data. Having more
+    // threads increases decoding speed by about 10%.
+    int threads = __MIN(vlc_GetCPUCount() * 2, MAX_THREAD_COUNT);
     if (threads > 1) {
         de265_error err;
         err = de265_start_worker_threads(sys->ctx, threads);
@@ -352,7 +373,7 @@ static int Open(vlc_object_t *p_this)
     dec->b_need_packetized = true;
 
     sys->check_extra = true;
-    sys->length_size = 4;  // XXX: this should always come from the "extra" data
+    sys->length_size = DEFAULT_LENGTH_SIZE;
     sys->packetized = dec->fmt_in.b_packetized;
     sys->late_frames = 0;
 
