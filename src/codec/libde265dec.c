@@ -75,8 +75,8 @@ static picture_t *Decode(decoder_t *dec, block_t **pp_block)
 {
     decoder_sys_t *sys = dec->p_sys;
     de265_decoder_context *ctx = sys->ctx;
-    int drawpicture;
-    int prerolling;
+    bool drawpicture;
+    bool prerolling;
     de265_error err;
     int more;
     const struct de265_image *image;
@@ -140,9 +140,9 @@ static picture_t *Decode(decoder_t *dec, block_t **pp_block)
 
     if ((prerolling = (block->i_flags & BLOCK_FLAG_PREROLL))) {
         sys->late_frames = 0;
-        drawpicture = 0;
+        drawpicture = false;
     } else {
-        drawpicture = 1;
+        drawpicture = true;
     }
 
     if (!dec->b_pace_control && (sys->late_frames > 0) &&
@@ -155,7 +155,7 @@ static picture_t *Decode(decoder_t *dec, block_t **pp_block)
 
     if (!dec->b_pace_control &&
         (sys->late_frames > 4)) {
-        drawpicture = 0;
+        drawpicture = false;
         if (sys->late_frames < 12) {
             // TODO(fancycode): tell decoder to skip frame
         } else {
