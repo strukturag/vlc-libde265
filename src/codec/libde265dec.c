@@ -342,7 +342,7 @@ static int Open(vlc_object_t *p_this)
 
     msg_Dbg(p_this, "using libde265 version %s", de265_get_version());
     if ((sys->ctx = de265_new_decoder()) == NULL) {
-        msg_Err(p_this, "Failed to initialize decoder\n");
+        msg_Err(p_this, "Failed to initialize decoder");
         free(sys);
         return VLC_EGENERIC;
     }
