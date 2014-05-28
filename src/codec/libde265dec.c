@@ -83,6 +83,13 @@ struct decoder_sys_t
     int decode_ratio;
     bool check_extra;
     bool packetized;
+    int direct_rendering_used;
+};
+
+struct picture_ref_t
+{
+    decoder_t *decoder;
+    picture_t *picture;
 };
 
 static void SetDecodeRatio(decoder_sys_t *sys, int ratio)
@@ -292,34 +299,42 @@ static picture_t *Decode(decoder_t *dec, block_t **pp_block)
         }
     } while (!drawpicture);
 
-    video_format_t *v = &dec->fmt_out.video;
-    int width = de265_get_image_width(image, 0);
-    int height = de265_get_image_height(image, 0);
+    picture_t *pic;
+    struct picture_ref_t *ref = (struct picture_ref_t *) de265_get_image_plane_user_data(image, 0);
+    if (ref != NULL) {
+        // using direct rendering
+        pic = ref->picture;
+        decoder_LinkPicture(dec, pic);
+    } else {
+        video_format_t *v = &dec->fmt_out.video;
+        int width = de265_get_image_width(image, 0);
+        int height = de265_get_image_height(image, 0);
 
-    if (width != (int) v->i_width || height != (int) v->i_height) {
-        v->i_width = width;
-        v->i_height = height;
-    }
-    if (width != (int) v->i_visible_width || height != (int) v->i_visible_height) {
-        v->i_visible_width = width;
-        v->i_visible_height = height;
-    }
+        if (width != (int) v->i_width || height != (int) v->i_height) {
+            v->i_width = width;
+            v->i_height = height;
+        }
+        if (width != (int) v->i_visible_width || height != (int) v->i_visible_height) {
+            v->i_visible_width = width;
+            v->i_visible_height = height;
+        }
 
-    picture_t *pic = decoder_NewPicture(dec);
-    if (!pic)
-        return NULL;
+        pic = decoder_NewPicture(dec);
+        if (!pic)
+            return NULL;
 
-    for (int plane = 0; plane < pic->i_planes; plane++ ) {
-        int src_stride;
-        const uint8_t *src = de265_get_image_plane(image, plane, &src_stride);
-        int dst_stride = pic->p[plane].i_pitch;
-        uint8_t *dst = pic->p[plane].p_pixels;
+        for (int plane = 0; plane < pic->i_planes; plane++ ) {
+            int src_stride;
+            const uint8_t *src = de265_get_image_plane(image, plane, &src_stride);
+            int dst_stride = pic->p[plane].i_pitch;
+            uint8_t *dst = pic->p[plane].p_pixels;
 
-        int size = __MIN( src_stride, dst_stride );
-        for( int line = 0; line < pic->p[plane].i_visible_lines; line++ ) {
-            memcpy( dst, src, size );
-            src += src_stride;
-            dst += dst_stride;
+            int size = __MIN( src_stride, dst_stride );
+            for( int line = 0; line < pic->p[plane].i_visible_lines; line++ ) {
+                memcpy( dst, src, size );
+                src += src_stride;
+                dst += dst_stride;
+            }
         }
     }
 
@@ -332,6 +347,140 @@ error:
     block_Release(*pp_block);
     *pp_block = NULL;
     return NULL;
+}
+
+static void ReleasePictureRef(struct picture_ref_t *ref)
+{
+    decoder_UnlinkPicture(ref->decoder, ref->picture);
+    free(ref);
+}
+
+static picture_t *GetPicture(decoder_t *dec, struct de265_image_spec* spec)
+{
+    int width = spec->width;
+    int height = spec->height;
+    if (width == 0 || height == 0 || width > 8192 || height > 8192) {
+        msg_Err(dec, "Invalid frame size %dx%d.", width, height);
+        return NULL;
+    }
+
+    dec->fmt_out.video.i_width = width;
+    dec->fmt_out.video.i_height = height;
+
+    if (width != spec->visible_width || height != spec->visible_height) {
+        dec->fmt_out.video.i_x_offset = spec->crop_left;
+        dec->fmt_out.video.i_y_offset = spec->crop_top;
+        dec->fmt_out.video.i_visible_width = spec->visible_width;
+        dec->fmt_out.video.i_visible_height = spec->visible_height;
+    } else {
+        dec->fmt_out.video.i_visible_width = width;
+        dec->fmt_out.video.i_visible_height = height;
+    }
+
+    picture_t *pic = decoder_NewPicture(dec);
+    if (pic == NULL) {
+        return NULL;
+    }
+
+    decoder_sys_t *sys = dec->p_sys;
+    if (pic->p[0].i_pitch < width * pic->p[0].i_pixel_pitch) {
+        if (sys->direct_rendering_used != 0) {
+            msg_Dbg(dec, "plane 0: pitch too small (%d/%d*%d)",
+                    pic->p[0].i_pitch, width, pic->p[0].i_pixel_pitch);
+        }
+        goto error;
+    }
+
+    if (pic->p[0].i_lines < height) {
+        if (sys->direct_rendering_used != 0) {
+            msg_Dbg(dec, "plane 0: lines too few (%d/%d)",
+                    pic->p[0].i_lines, height);
+        }
+        goto error;
+    }
+
+    for (int i = 0; i < pic->i_planes; i++) {
+        if (pic->p[i].i_pitch % spec->alignment) {
+            if (sys->direct_rendering_used != 0) {
+                msg_Dbg(dec, "plane %d: pitch not aligned (%d%%%d)",
+                        i, pic->p[i].i_pitch, spec->alignment);
+            }
+            goto error;
+        }
+        if (((uintptr_t)pic->p[i].p_pixels) % spec->alignment) {
+            if (sys->direct_rendering_used != 0) {
+                msg_Warn(dec, "plane %d not aligned", i);
+            }
+            goto error;
+        }
+    }
+    return pic;
+
+error:
+    decoder_DeletePicture(dec, pic);
+    return NULL;
+}
+
+static int GetBuffer(de265_decoder_context* ctx, struct de265_image_spec* spec, struct de265_image* img, void* userdata)
+{
+    decoder_t *dec = (decoder_t *) userdata;
+    decoder_sys_t *sys = dec->p_sys;
+
+    picture_t *pic = GetPicture(dec, spec);
+    if (pic == NULL) {
+        if (sys->direct_rendering_used != 0) {
+            msg_Warn(dec, "disabling direct rendering");
+            sys->direct_rendering_used = 0;
+        }
+        return de265_get_default_image_allocation_functions()->get_buffer(ctx, spec, img, userdata);
+    }
+
+    if (sys->direct_rendering_used != 1) {
+        msg_Dbg(dec, "enabling direct rendering");
+        sys->direct_rendering_used = 1;
+    }
+    for (int i = 0; i < pic->i_planes; i++) {
+        struct picture_ref_t *ref = (struct picture_ref_t *) malloc(sizeof (*ref));
+        if (ref == NULL) {
+            goto error;
+        }
+        ref->decoder = dec;
+        ref->picture = pic;
+        decoder_LinkPicture(dec, pic);
+
+        uint8_t *data = pic->p[i].p_pixels;
+        int stride = pic->p[i].i_pitch;
+        de265_set_image_plane(img, i, data, stride, ref);
+    }
+    decoder_UnlinkPicture(dec, pic);
+    return 1;
+
+error:
+    for (int i=0; i<3; i++) {
+        struct picture_ref_t *userdata = (struct picture_ref_t *) de265_get_image_plane_user_data(img, i);
+        if (userdata) {
+            ReleasePictureRef(userdata);
+        }
+    }
+    decoder_DeletePicture(dec, pic);
+    return de265_get_default_image_allocation_functions()->get_buffer(ctx, spec, img, userdata);
+}
+
+static void ReleaseBuffer(de265_decoder_context* ctx, struct de265_image* img, void* userdata)
+{
+    int release_default = 1;
+    for (int i=0; i<3; i++) {
+        struct picture_ref_t *ref = (struct picture_ref_t *) de265_get_image_plane_user_data(img, i);
+        if (ref) {
+            ReleasePictureRef(ref);
+            release_default = 0;
+        }
+    }
+
+    if (release_default) {
+        // image was created from default allocator
+        de265_get_default_image_allocation_functions()->release_buffer(ctx, img, userdata);
+    }
 }
 
 /*****************************************************************************
@@ -356,6 +505,11 @@ static int Open(vlc_object_t *p_this)
         free(sys);
         return VLC_EGENERIC;
     }
+
+    struct de265_image_allocation allocators;
+    allocators.get_buffer = GetBuffer;
+    allocators.release_buffer = ReleaseBuffer;
+    de265_set_image_allocation_functions(sys->ctx, &allocators, dec);
 
     // NOTE: We start more threads than cores for now, as some threads
     // might get blocked while waiting for dependent data. Having more
@@ -382,6 +536,7 @@ static int Open(vlc_object_t *p_this)
     sys->packetized = dec->fmt_in.b_packetized;
     sys->late_frames = 0;
     sys->decode_ratio = 100;
+    sys->direct_rendering_used = -1;
 
     return VLC_SUCCESS;
 }
