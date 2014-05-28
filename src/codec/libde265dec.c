@@ -80,14 +80,11 @@ struct decoder_sys_t
     mtime_t late_frames_start;
     int length_size;
     int late_frames;
-#if LIBDE265_NUMERIC_VERSION >= 0x00070000
     int decode_ratio;
-#endif
     bool check_extra;
     bool packetized;
 };
 
-#if LIBDE265_NUMERIC_VERSION >= 0x00070000
 static void SetDecodeRatio(decoder_sys_t *sys, int ratio)
 {
     if (ratio != sys->decode_ratio) {
@@ -96,7 +93,6 @@ static void SetDecodeRatio(decoder_sys_t *sys, int ratio)
         de265_set_framerate_ratio(ctx, ratio);
     }
 }
-#endif
 
 /****************************************************************************
  * Decode: the whole thing
@@ -116,9 +112,7 @@ static picture_t *Decode(decoder_t *dec, block_t **pp_block)
         return NULL;
 
     if (block->i_flags & (BLOCK_FLAG_DISCONTINUITY|BLOCK_FLAG_CORRUPTED)) {
-#if LIBDE265_NUMERIC_VERSION >= 0x00070000
         SetDecodeRatio(sys, 100);
-#endif
         sys->late_frames = 0;
         if (block->i_flags & BLOCK_FLAG_DISCONTINUITY) {
             de265_reset(ctx);
@@ -146,9 +140,7 @@ static picture_t *Decode(decoder_t *dec, block_t **pp_block)
                     goto error;
                 }
             }
-#if LIBDE265_NUMERIC_VERSION >= 0x00070000
             de265_push_end_of_NAL(ctx);
-#endif
             do {
                 err = de265_decode(ctx, &can_decode_more);
                 switch (err) {
@@ -172,9 +164,7 @@ static picture_t *Decode(decoder_t *dec, block_t **pp_block)
     }
 
     if ((prerolling = (block->i_flags & BLOCK_FLAG_PREROLL))) {
-#if LIBDE265_NUMERIC_VERSION >= 0x00070000
         SetDecodeRatio(sys, 100);
-#endif
         sys->late_frames = 0;
         drawpicture = false;
     } else {
@@ -194,9 +184,7 @@ static picture_t *Decode(decoder_t *dec, block_t **pp_block)
         drawpicture = false;
         if (sys->late_frames < LATE_FRAMES_DROP_HARD) {
             // tell the decoder to skip frames
-#if LIBDE265_NUMERIC_VERSION >= 0x00070000
             SetDecodeRatio(sys, 0);
-#endif
         } else {
             // picture too late, won't decode, but break picture until
             // a new keyframe is available
@@ -299,9 +287,7 @@ static picture_t *Decode(decoder_t *dec, block_t **pp_block)
                 sys->late_frames_start = mdate();
             }
         } else {
-#if LIBDE265_NUMERIC_VERSION >= 0x00070000
             SetDecodeRatio(sys, 100);
-#endif
             sys->late_frames = 0;
         }
     } while (!drawpicture);
@@ -395,9 +381,7 @@ static int Open(vlc_object_t *p_this)
     sys->length_size = DEFAULT_LENGTH_SIZE;
     sys->packetized = dec->fmt_in.b_packetized;
     sys->late_frames = 0;
-#if LIBDE265_NUMERIC_VERSION >= 0x00070000
     sys->decode_ratio = 100;
-#endif
 
     return VLC_SUCCESS;
 }
