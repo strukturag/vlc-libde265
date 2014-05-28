@@ -86,12 +86,18 @@ struct decoder_sys_t
     int direct_rendering_used;
 };
 
+/*****************************************************************************
+ * picture_ref_t: an reference to a vlc picture stored in a libde265 image
+ *****************************************************************************/
 struct picture_ref_t
 {
     decoder_t *decoder;
     picture_t *picture;
 };
 
+/*****************************************************************************
+ * SetDecodeRation: tell the decoder to decode only a percentage of the framerate
+ *****************************************************************************/
 static void SetDecodeRatio(decoder_sys_t *sys, int ratio)
 {
     if (ratio != sys->decode_ratio) {
@@ -349,12 +355,18 @@ error:
     return NULL;
 }
 
+/*****************************************************************************
+ * ReleasePictureRef: release a reference to a vlc picture
+ *****************************************************************************/
 static void ReleasePictureRef(struct picture_ref_t *ref)
 {
     decoder_UnlinkPicture(ref->decoder, ref->picture);
     free(ref);
 }
 
+/*****************************************************************************
+ * GetPicture: create a vlc picture that can be used for direct rendering
+ *****************************************************************************/
 static picture_t *GetPicture(decoder_t *dec, struct de265_image_spec* spec)
 {
     int width = spec->width;
@@ -421,6 +433,9 @@ error:
     return NULL;
 }
 
+/*****************************************************************************
+ * GetBuffer: libde265 callback to create images
+ *****************************************************************************/
 static int GetBuffer(de265_decoder_context* ctx, struct de265_image_spec* spec, struct de265_image* img, void* userdata)
 {
     decoder_t *dec = (decoder_t *) userdata;
@@ -466,6 +481,9 @@ error:
     return de265_get_default_image_allocation_functions()->get_buffer(ctx, spec, img, userdata);
 }
 
+/*****************************************************************************
+ * ReleaseBuffer: libde265 callback to release images
+ *****************************************************************************/
 static void ReleaseBuffer(de265_decoder_context* ctx, struct de265_image* img, void* userdata)
 {
     int release_default = 1;
