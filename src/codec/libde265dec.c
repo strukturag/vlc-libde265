@@ -104,6 +104,13 @@ static void SetDecodeRatio(decoder_sys_t *sys, int ratio)
         de265_decoder_context *ctx = sys->ctx;
         sys->decode_ratio = ratio;
         de265_set_framerate_ratio(ctx, ratio);
+        if (ratio < 100) {
+            de265_set_parameter_bool(sys->ctx, DE265_DECODER_PARAM_DISABLE_DEBLOCKING, true);
+            de265_set_parameter_bool(sys->ctx, DE265_DECODER_PARAM_DISABLE_SAO, true);
+        } else {
+            de265_set_parameter_bool(sys->ctx, DE265_DECODER_PARAM_DISABLE_DEBLOCKING, false);
+            de265_set_parameter_bool(sys->ctx, DE265_DECODER_PARAM_DISABLE_SAO, false);
+        }
     }
 }
 
