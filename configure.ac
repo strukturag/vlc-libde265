@@ -38,7 +38,7 @@ AC_FUNC_STRNLEN
 AC_SEARCH_LIBS([sqrt], [m])
 AC_CHECK_FUNCS([memset sqrt strcasecmp strcspn strdup strndup strstr strtol])
 
-PKG_CHECK_MODULES([libde265], [libde265 >= 0.6])
+PKG_CHECK_MODULES([libde265], [libde265 >= 0.7])
 PKG_CHECK_MODULES([vlc], [vlc-plugin >= 2.0])
 PKG_CHECK_MODULES([vlc212], [vlc-plugin >= 2.1],
     [AC_DEFINE([HAVE_VLC_HEVC], [1], [Whether VLC with HEVC support was found.])
