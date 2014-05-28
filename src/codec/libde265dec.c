@@ -371,6 +371,10 @@ static picture_t *GetPicture(decoder_t *dec, struct de265_image_spec* spec)
 {
     int width = spec->width;
     int height = spec->height;
+
+    if (width % spec->alignment) {
+        width += spec->alignment - (width % spec->alignment);
+    }
     if (width == 0 || height == 0 || width > 8192 || height > 8192) {
         msg_Err(dec, "Invalid frame size %dx%d.", width, height);
         return NULL;
