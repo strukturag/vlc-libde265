@@ -26,7 +26,7 @@ If you fetched vlc-libde265 from GitHub, you will need to generate the
 In addition to a compiler, a couple of other packages must be installed
 in order to compile the plugin:
 - libvlccore-dev
-- libde265-dev (>= 0.6)
+- libde265-dev (>= 0.7)
 - libebml-dev
 - libmatroska-dev
 - libdvbpsi-dev
