@@ -312,6 +312,19 @@ static picture_t *Decode(decoder_t *dec, block_t **pp_block)
         }
     } while (!drawpicture);
 
+    video_format_t *v = &dec->fmt_out.video;
+    int width = de265_get_image_width(image, 0);
+    int height = de265_get_image_height(image, 0);
+
+    if (width != (int) v->i_width || height != (int) v->i_height) {
+        v->i_width = width;
+        v->i_height = height;
+    }
+    if (width != (int) v->i_visible_width || height != (int) v->i_visible_height) {
+        v->i_visible_width = width;
+        v->i_visible_height = height;
+    }
+
     picture_t *pic;
     struct picture_ref_t *ref = (struct picture_ref_t *) de265_get_image_plane_user_data(image, 0);
     if (ref != NULL) {
@@ -319,19 +332,6 @@ static picture_t *Decode(decoder_t *dec, block_t **pp_block)
         pic = ref->picture;
         decoder_LinkPicture(dec, pic);
     } else {
-        video_format_t *v = &dec->fmt_out.video;
-        int width = de265_get_image_width(image, 0);
-        int height = de265_get_image_height(image, 0);
-
-        if (width != (int) v->i_width || height != (int) v->i_height) {
-            v->i_width = width;
-            v->i_height = height;
-        }
-        if (width != (int) v->i_visible_width || height != (int) v->i_visible_height) {
-            v->i_visible_width = width;
-            v->i_visible_height = height;
-        }
-
         pic = decoder_NewPicture(dec);
         if (!pic)
             return NULL;
