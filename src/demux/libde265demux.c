@@ -31,6 +31,7 @@
 #include <vlc_common.h>
 #include <vlc_plugin.h>
 #include <vlc_demux.h>
+#include <vlc_bits.h>
 #include <assert.h>
 
 #include "../../include/libde265_plugin_common.h"
@@ -43,7 +44,7 @@ static void Close(vlc_object_t *);
 
 #define DETECT_BUFFER_SIZE      1024
 
-#define DEMUX_FRAME_SIZE        4096
+#define INITIAL_PEEK_SIZE       4096
 
 #define NAL_UNIT_BLA_W_LP       16      // BLA = broken link access
 #define NAL_UNIT_BLA_W_RADL     17
@@ -78,6 +79,9 @@ struct demux_sys_t
     es_out_id_t *es_video;
     es_format_t fmt_video;
     date_t pcr;
+    int frame_size_estimate;
+    int data_peeked;
+    const uint8_t *peek;
 };
 
 /*****************************************************************************
@@ -212,6 +216,10 @@ supported_extension:
                sys->fmt_video.video.i_frame_rate_base);
     date_Set(&sys->pcr, 0);
 
+    sys->frame_size_estimate = 0;
+    sys->data_peeked = 0;
+    sys->frame_size_estimate = INITIAL_PEEK_SIZE;
+
     demux->pf_demux = Demux;
     demux->pf_control = Control;
 
@@ -231,6 +239,68 @@ static void Close(vlc_object_t *p_this)
 }
 
 /*****************************************************************************
+ * Peek: Helper function to peek data with incremental size.
+ * \return false if peek no more data, true otherwise.
+ *****************************************************************************/
+static bool Peek(demux_t *p_demux, bool first)
+{
+    int data;
+    demux_sys_t *sys = p_demux->p_sys;
+
+    if (first) {
+        sys->data_peeked = 0;
+    } else if (sys->data_peeked == sys->frame_size_estimate) {
+        sys->frame_size_estimate += 4096;
+    }
+    data = stream_Peek(p_demux->s, &sys->peek, sys->frame_size_estimate );
+    if (data == sys->data_peeked) {
+        msg_Warn(p_demux, "no more data");
+        return false;
+    }
+    //printf("Peeked: %d (requested %d)\n", data, sys->frame_size_estimate);
+    sys->data_peeked = data;
+    if (data <= 0) {
+        assert(0);
+        msg_Warn(p_demux, "cannot peek data");
+        return false;
+    }
+    return true;
+}
+
+/*****************************************************************************
+ * SearchStartcode: Helper function to search for next NAL start code
+ * \return position of start code or -1 if none was found (or no more data
+ * is available.
+ *****************************************************************************/
+static int32_t SearchStartcode(demux_t *p_demux, int32_t start)
+{
+    demux_sys_t *sys = p_demux->p_sys;
+    if (start == 0) {
+        if (!Peek(p_demux, true)) {
+            return -1;
+        }
+    }
+
+    int32_t pos = start;
+    int32_t remaining = sys->data_peeked - pos;
+    for (;;) {
+        if (pos + 4 >= sys->data_peeked) {
+            if (!Peek(p_demux, false)) {
+                // probably EOF
+                pos = -1;
+                break;
+            }
+        }
+
+        if (sys->peek[pos] == 0 && sys->peek[pos+1] == 0 && sys->peek[pos+2] == 0 && sys->peek[pos+3] == 1) {
+            break;
+        }
+        pos++;
+    }
+    return pos;
+}
+
+/*****************************************************************************
  * Demux: reads and demuxes data packets
  *****************************************************************************
  * Returns -1 in case of error, 0 in case of EOF, 1 otherwise
@@ -241,11 +311,44 @@ static int Demux(demux_t *p_demux)
     mtime_t pcr = date_Get(&sys->pcr);
     block_t *p_block;
 
+    int32_t start = SearchStartcode(p_demux, 0);
+    if (start == -1) {
+        if (sys->data_peeked == 0) {
+            return 0;
+        }
+
+        msg_Err(p_demux, "no startcode found");
+        assert(0);
+        return -1;
+    }
+
+    // need at least 4 bytes startcode + 2 bytes header
+    if (sys->data_peeked < start + 6) {
+        msg_Err(p_demux, "data shortage");
+        assert(0);
+        return -1;
+    }
+
+    // parse NALU header
+    bs_t bitreader;
+    bs_init(&bitreader, sys->peek + start + 4, sys->data_peeked - start - 4);
+    bs_skip(&bitreader, 1);  // reserved bit
+    int32_t type = bs_read(&bitreader, 6);
+    int32_t layer_id = bs_read(&bitreader, 6);
+    int32_t temporal_id_plus1 = bs_read(&bitreader, 3);
+
+    int32_t end = SearchStartcode(p_demux, start + 6);
+    if (end == -1) {
+        end = sys->data_peeked;
+    }
+
+    // TODO(fancycode): only advance timestamp on complete frame
+    msg_Dbg(p_demux, "found NAL: type=%d layer=%d temporal=%d size=%d", type, layer_id, temporal_id_plus1, end - start);
+
     /* Call the pace control */
     es_out_Control(p_demux->out, ES_OUT_SET_PCR, VLC_TS_0 + pcr);
 
-    // TODO(fancycode): make sure to read a complete frame
-    if ((p_block = stream_Block(p_demux->s, DEMUX_FRAME_SIZE)) == NULL) {
+    if ((p_block = stream_Block(p_demux->s, end - start)) == NULL) {
         /* EOF */
         return 0;
     }
