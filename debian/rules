@@ -40,12 +40,15 @@ install: build
 	make install
 	mkdir -p $(DEBIAN)/vlc-plugin-libde265/usr/lib/vlc/plugins/codec/
 	cp $(DEBIAN)/prefix/lib/libde265_plugin.so $(DEBIAN)/vlc-plugin-libde265/usr/lib/vlc/plugins/codec/
+	mkdir -p $(DEBIAN)/vlc-plugin-libde265/usr/lib/vlc/plugins/demux/
+	cp $(DEBIAN)/prefix/lib/libde265demux_plugin.so $(DEBIAN)/vlc-plugin-libde265/usr/lib/vlc/plugins/demux/
 	if [ -e $(DEBIAN)/prefix/lib/libde265_mkv_plugin.so ]; then \
-		mkdir -p $(DEBIAN)/vlc-plugin-libde265/usr/lib/vlc/plugins/demux/; \
 		cp $(DEBIAN)/prefix/lib/libde265_mkv_plugin.so $(DEBIAN)/vlc-plugin-libde265/usr/lib/vlc/plugins/demux/; \
 	fi
+	if [ -e $(DEBIAN)/prefix/lib/libde265_mp4_plugin.so ]; then \
+		cp $(DEBIAN)/prefix/lib/libde265_mp4_plugin.so $(DEBIAN)/vlc-plugin-libde265/usr/lib/vlc/plugins/demux/; \
+	fi
 	if [ -e $(DEBIAN)/prefix/lib/libde265_ts_plugin.so ]; then \
-		mkdir -p $(DEBIAN)/vlc-plugin-libde265/usr/lib/vlc/plugins/demux/; \
 		cp $(DEBIAN)/prefix/lib/libde265_ts_plugin.so $(DEBIAN)/vlc-plugin-libde265/usr/lib/vlc/plugins/demux/; \
 	fi
 
