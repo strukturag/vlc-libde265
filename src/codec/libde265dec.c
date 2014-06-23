@@ -285,6 +285,17 @@ static picture_t *Decode(decoder_t *dec, block_t **pp_block)
 
             image = de265_get_next_picture(ctx);
         } while (image == NULL && can_decode_more);
+
+        // log warnings
+        for (;;) {
+            de265_error warning = de265_get_warning(ctx);
+            if (warning == DE265_OK) {
+                break;
+            }
+
+            msg_Warn(dec, "%s", de265_get_error_text(err));
+        }
+
         if (!image) {
             return NULL;
         }
