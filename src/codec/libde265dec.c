@@ -214,6 +214,11 @@ static picture_t *Decode(decoder_t *dec, block_t **pp_block)
         }
     }
 
+    mtime_t pts = block->i_pts;
+    if (pts == 0 || pts == VLC_TS_INVALID) {
+        pts = block->i_dts;
+    }
+
     uint8_t *p_buffer = block->p_buffer;
     size_t i_buffer = block->i_buffer;
     if (i_buffer > 0) {
@@ -232,7 +237,7 @@ static picture_t *Decode(decoder_t *dec, block_t **pp_block)
                     goto error;
                 }
 
-                err = de265_push_NAL(ctx, p_buffer, length, block->i_pts, NULL);
+                err = de265_push_NAL(ctx, p_buffer, length, pts, NULL);
                 if (!de265_isOK(err)) {
                     msg_Err(dec, "Failed to push data: %s (%d)", de265_get_error_text(err), err);
                     goto error;
@@ -242,7 +247,7 @@ static picture_t *Decode(decoder_t *dec, block_t **pp_block)
                 i_buffer -= length;
             }
         } else {
-            err = de265_push_data(ctx, p_buffer, i_buffer, block->i_pts, NULL);
+            err = de265_push_data(ctx, p_buffer, i_buffer, pts, NULL);
             if (!de265_isOK(err)) {
                 msg_Err(dec, "Failed to push data: %s (%d)", de265_get_error_text(err), err);
                 goto error;
@@ -258,7 +263,6 @@ static picture_t *Decode(decoder_t *dec, block_t **pp_block)
     block_Release(block);
     *pp_block = NULL;
 
-    mtime_t pts;
     // decode (and skip) all available images (e.g. when prerolling
     // after a seek)
     do {
