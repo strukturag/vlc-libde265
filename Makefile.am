@@ -20,6 +20,16 @@ libde265_plugin_la_SOURCES = \
 	src/codec/libde265dec.c \
 	include/libde265_plugin_common.h
 
+lib_LTLIBRARIES += libde265demux_plugin.la
+
+libde265demux_plugin_la_CFLAGS = -DMODULE_STRING=\"de265demux\" $(vlc_CFLAGS)
+libde265demux_plugin_la_CPPFLAGS = -DMODULE_STRING=\"de265demux\" $(vlc_CFLAGS)
+libde265demux_plugin_la_LIBADD = $(vlc_LIBS)
+libde265demux_plugin_la_LDFLAGS = -avoid-version -module -export-symbol-regex ^vlc_entry $(vlc_LDFLAGS)
+libde265demux_plugin_la_SOURCES = \
+	src/demux/libde265demux.c \
+	include/libde265_plugin_common.h
+
 # older versions of vlc don't know about HEVC content in MKV
 if !HAVE_VLC_HEVC
   lib_LTLIBRARIES += libde265_mkv_plugin.la
