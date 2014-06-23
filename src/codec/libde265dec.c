@@ -215,8 +215,10 @@ static picture_t *Decode(decoder_t *dec, block_t **pp_block)
     }
 
     mtime_t pts = block->i_pts;
+    bool use_decoder_pts = true;
     if (pts == 0 || pts == VLC_TS_INVALID) {
         pts = block->i_dts;
+        use_decoder_pts = false;
     }
 
     uint8_t *p_buffer = block->p_buffer;
@@ -309,7 +311,9 @@ static picture_t *Decode(decoder_t *dec, block_t **pp_block)
             return NULL;
         }
 
-        pts = de265_get_image_PTS(image);
+        if (use_decoder_pts) {
+            pts = de265_get_image_PTS(image);
+        }
 
         mtime_t display_date = 0;
         if (!prerolling) {
