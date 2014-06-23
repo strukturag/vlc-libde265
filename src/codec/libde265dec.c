@@ -51,6 +51,9 @@
 // Don't pass data to decoder if more than 12 late frames
 #define LATE_FRAMES_DROP_HARD       12
 
+#define THREADS_TEXT N_("Threads")
+#define THREADS_LONGTEXT N_("Number of threads used for decoding, 0 meaning auto")
+
 /****************************************************************************
  * Local prototypes
  ****************************************************************************/
@@ -68,6 +71,8 @@ vlc_module_begin ()
     set_callbacks(Open, Close)
     set_category(CAT_INPUT)
     set_subcategory(SUBCAT_INPUT_VCODEC)
+    add_shortcut("libde265dec")
+    add_integer("libde265-threads", 0, THREADS_TEXT, THREADS_LONGTEXT, true);
 vlc_module_end ()
 
 /*****************************************************************************
@@ -591,16 +596,25 @@ static int Open(vlc_object_t *p_this)
     allocators.release_buffer = ReleaseBuffer;
     de265_set_image_allocation_functions(sys->ctx, &allocators, dec);
 
-    // NOTE: We start more threads than cores for now, as some threads
-    // might get blocked while waiting for dependent data. Having more
-    // threads increases decoding speed by about 10%.
-    int threads = __MIN(vlc_GetCPUCount() * 2, MAX_THREAD_COUNT);
-    de265_error err = de265_start_worker_threads(sys->ctx, threads);
-    if (!de265_isOK(err)) {
-        // don't report to caller, decoding will work anyway...
-        msg_Err(dec, "Failed to start worker threads: %s (%d)", de265_get_error_text(err), err);
+    int threads = var_InheritInteger(dec, "libde265-threads");
+    if (threads <= 0) {
+        threads = vlc_GetCPUCount();
+        // NOTE: We start more threads than cores for now, as some threads
+        // might get blocked while waiting for dependent data. Having more
+        // threads increases decoding speed by about 10%.
+        threads = threads * 2;
+    }
+    if (threads > 1) {
+        threads = __MIN(threads, MAX_THREAD_COUNT);
+        de265_error err = de265_start_worker_threads(sys->ctx, threads);
+        if (!de265_isOK(err)) {
+            // don't report to caller, decoding will work anyway...
+            msg_Err(dec, "Failed to start worker threads: %s (%d)", de265_get_error_text(err), err);
+        } else {
+            msg_Dbg(p_this, "Started %d worker threads", threads);
+        }
     } else {
-        msg_Dbg(p_this, "started %d worker threads", threads);
+        msg_Dbg(p_this, "Using single-threaded decoding");
     }
 
     dec->pf_decode_video = Decode;
