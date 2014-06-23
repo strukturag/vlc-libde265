@@ -1,9 +1,9 @@
 # vlc-libde265
 
-Plugin for VLC 2.x to support HEVC decoding using libde265. For VLC
+Plugins for VLC 2.x to support HEVC decoding using libde265. For VLC
 versions below 2.1, a modified MKV demuxer is included which has support
-for HEVC streams. For VLC versions below 2.2, a modified MPEG-TS demuxer
-is included which has support for HEVC streams.
+for HEVC streams. For VLC versions below 2.2, modified MPEG-TS and MP4
+demuxers are included which have support for HEVC streams.
 
 
 ## Building
@@ -38,8 +38,7 @@ version of Debian / Ubuntu.
 ## Patches
 
 See the `patches` folder for changes applied to the VLC source code of
-the MKV and MPEG-TS demuxer to make it compile against older versions of
-VLC in this plugin.
+the demuxers to make them compile against older versions of VLC.
 
 
 ## Packages
