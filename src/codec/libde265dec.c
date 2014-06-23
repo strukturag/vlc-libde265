@@ -350,7 +350,7 @@ static picture_t *Decode(decoder_t *dec, block_t **pp_block)
                 break;
             }
 
-            msg_Warn(dec, "%s", de265_get_error_text(err));
+            msg_Warn(dec, "%s", de265_get_error_text(warning));
         }
 
         if (!image) {
