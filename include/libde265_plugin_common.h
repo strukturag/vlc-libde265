@@ -24,6 +24,10 @@
 #define VLC_CODEC_HEVC VLC_FOURCC('h','e','v','c')
 #endif
 
+#ifndef VLC_CODEC_HEV1
+#define VLC_CODEC_HEV1 VLC_FOURCC('h','e','v','1')
+#endif
+
 #ifndef VLC_CODEC_SCTE_27
 #ifdef HAVE_VLC_HEVC_TS
 #error "should have VLC_CODEC_SCTE_27 with this version of VLC"
