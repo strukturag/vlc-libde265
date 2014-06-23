@@ -41,6 +41,16 @@ See the `patches` folder for changes applied to the VLC source code of
 the demuxers to make them compile against older versions of VLC.
 
 
+## Settings
+
+In the advanced settings of VLC, a couple of properties can be configured
+for the libde265 plugins (below "Demuxers" and "Video codecs"):
+- Framerate for raw bitstream demuxer (25 fps is assumed by default)
+- Number of threads to use for decoding ("auto" by default)
+- Whether the deblocking filter should be disabled (enabled by default)
+- Whether the sample-adaptive-offset filter should be disabled (enabled by default)
+
+
 ## Packages
 
 Binary packages for Ubuntu are available on Launchpad:
