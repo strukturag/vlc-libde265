@@ -97,6 +97,7 @@ static const char *extensions[] =
     "h265",
     "265",
     "bin",
+    "bit",
     NULL
 };
 
@@ -252,7 +253,7 @@ static bool Peek(demux_t *p_demux, bool first)
     } else if (sys->data_peeked == sys->frame_size_estimate) {
         sys->frame_size_estimate += 4096;
     }
-    data = stream_Peek(p_demux->s, &sys->peek, sys->frame_size_estimate );
+    data = stream_Peek(p_demux->s, &sys->peek, sys->frame_size_estimate);
     if (data == sys->data_peeked) {
         msg_Warn(p_demux, "no more data");
         return false;
@@ -272,7 +273,7 @@ static bool Peek(demux_t *p_demux, bool first)
  * \return position of start code or -1 if none was found (or no more data
  * is available.
  *****************************************************************************/
-static int32_t SearchStartcode(demux_t *p_demux, int32_t start)
+static int32_t SearchStartcode(demux_t *p_demux, int32_t start, int32_t *length)
 {
     demux_sys_t *sys = p_demux->p_sys;
     if (start == 0) {
@@ -292,7 +293,15 @@ static int32_t SearchStartcode(demux_t *p_demux, int32_t start)
             }
         }
 
-        if (sys->peek[pos] == 0 && sys->peek[pos+1] == 0 && sys->peek[pos+2] == 0 && sys->peek[pos+3] == 1) {
+        if (sys->peek[pos] == 0 && sys->peek[pos+1] == 0 && sys->peek[pos+2] == 1) {
+            if (length) {
+                *length = 3;
+            }
+            break;
+        } else if (sys->peek[pos] == 0 && sys->peek[pos+1] == 0 && sys->peek[pos+2] == 0 && sys->peek[pos+3] == 1) {
+            if (length) {
+                *length = 4;
+            }
             break;
         }
         pos++;
@@ -310,8 +319,9 @@ static int Demux(demux_t *p_demux)
     demux_sys_t *sys = p_demux->p_sys;
     mtime_t pcr = date_Get(&sys->pcr);
     block_t *p_block;
+    int32_t code_length;
 
-    int32_t start = SearchStartcode(p_demux, 0);
+    int32_t start = SearchStartcode(p_demux, 0, &code_length);
     if (start == -1) {
         if (sys->data_peeked == 0) {
             return 0;
@@ -322,8 +332,8 @@ static int Demux(demux_t *p_demux)
         return -1;
     }
 
-    // need at least 4 bytes startcode + 2 bytes header
-    if (sys->data_peeked < start + 6) {
+    // need at least 3 or 4 bytes startcode + 2 bytes header
+    if (sys->data_peeked < start + code_length + 2) {
         msg_Err(p_demux, "data shortage");
         assert(0);
         return -1;
@@ -331,23 +341,27 @@ static int Demux(demux_t *p_demux)
 
     // parse NALU header
     bs_t bitreader;
-    bs_init(&bitreader, sys->peek + start + 4, sys->data_peeked - start - 4);
+    bs_init(&bitreader, sys->peek + start + code_length, sys->data_peeked - start - code_length);
     bs_skip(&bitreader, 1);  // reserved bit
     int32_t type = bs_read(&bitreader, 6);
     int32_t layer_id = bs_read(&bitreader, 6);
     int32_t temporal_id_plus1 = bs_read(&bitreader, 3);
 
-    int32_t end = SearchStartcode(p_demux, start + 6);
+    int32_t end = SearchStartcode(p_demux, start + code_length + 2, NULL);
     if (end == -1) {
         end = sys->data_peeked;
     }
 
-    // TODO(fancycode): only advance timestamp on complete frame
-    msg_Dbg(p_demux, "found NAL: type=%d layer=%d temporal=%d size=%d", type, layer_id, temporal_id_plus1, end - start);
+    bool new_picture = false;
+    if (type < 32) {
+        int32_t flag = bs_read(&bitreader, 1);
+        new_picture = (flag == 1);
+    }
 
-    /* Call the pace control */
-    es_out_Control(p_demux->out, ES_OUT_SET_PCR, VLC_TS_0 + pcr);
-
+    if (new_picture) {
+        /* Call the pace control */
+        es_out_Control(p_demux->out, ES_OUT_SET_PCR, VLC_TS_0 + pcr);
+    }
     if ((p_block = stream_Block(p_demux->s, end - start)) == NULL) {
         /* EOF */
         return 0;
@@ -356,7 +370,9 @@ static int Demux(demux_t *p_demux)
     p_block->i_dts = p_block->i_pts = VLC_TS_0 + pcr;
     es_out_Send(p_demux->out, sys->es_video, p_block);
 
-    date_Increment(&sys->pcr, 1);
+    if (new_picture) {
+        date_Increment(&sys->pcr, 1);
+    }
     return 1;
 }
 
