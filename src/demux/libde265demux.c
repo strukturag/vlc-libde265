@@ -261,7 +261,6 @@ static bool Peek(demux_t *p_demux, bool first)
     //printf("Peeked: %d (requested %d)\n", data, sys->frame_size_estimate);
     sys->data_peeked = data;
     if (data <= 0) {
-        assert(0);
         msg_Warn(p_demux, "cannot peek data");
         return false;
     }
@@ -328,14 +327,12 @@ static int Demux(demux_t *p_demux)
         }
 
         msg_Err(p_demux, "no startcode found");
-        assert(0);
         return -1;
     }
 
     // need at least 3 or 4 bytes startcode + 2 bytes header
     if (sys->data_peeked < start + code_length + 2) {
         msg_Err(p_demux, "data shortage");
-        assert(0);
         return -1;
     }
 
