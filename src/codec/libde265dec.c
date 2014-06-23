@@ -54,6 +54,16 @@
 #define THREADS_TEXT N_("Threads")
 #define THREADS_LONGTEXT N_("Number of threads used for decoding, 0 meaning auto")
 
+#define DISABLE_DEBLOCKING_TEXT N_("Disable deblocking?")
+#define DISABLE_DEBLOCKING_LONGTEXT N_("Disabling the deblocking filter " \
+    "usually has a detrimental effect on quality. However it provides a big " \
+    "speedup for high definition streams.")
+
+#define DISABLE_SAO_TEXT N_("Disable SAO filter?")
+#define DISABLE_SAO_LONGTEXT N_("Disabling the sample adaptive offset filter " \
+    "usually has a detrimental effect on quality. However it provides a big " \
+    "speedup for high definition streams.")
+
 /****************************************************************************
  * Local prototypes
  ****************************************************************************/
@@ -73,6 +83,8 @@ vlc_module_begin ()
     set_subcategory(SUBCAT_INPUT_VCODEC)
     add_shortcut("libde265dec")
     add_integer("libde265-threads", 0, THREADS_TEXT, THREADS_LONGTEXT, true);
+    add_bool("libde265-disable-deblocking", false, DISABLE_DEBLOCKING_TEXT, DISABLE_DEBLOCKING_LONGTEXT, false)
+    add_bool("libde265-disable-sao", false, DISABLE_SAO_TEXT, DISABLE_SAO_LONGTEXT, false)
 vlc_module_end ()
 
 /*****************************************************************************
@@ -88,6 +100,8 @@ struct decoder_sys_t
     int decode_ratio;
     bool check_extra;
     bool packetized;
+    bool disable_deblocking;
+    bool disable_sao;
     int direct_rendering_used;
 };
 
@@ -113,8 +127,8 @@ static void SetDecodeRatio(decoder_sys_t *sys, int ratio)
             de265_set_parameter_bool(sys->ctx, DE265_DECODER_PARAM_DISABLE_DEBLOCKING, true);
             de265_set_parameter_bool(sys->ctx, DE265_DECODER_PARAM_DISABLE_SAO, true);
         } else {
-            de265_set_parameter_bool(sys->ctx, DE265_DECODER_PARAM_DISABLE_DEBLOCKING, false);
-            de265_set_parameter_bool(sys->ctx, DE265_DECODER_PARAM_DISABLE_SAO, false);
+            de265_set_parameter_bool(sys->ctx, DE265_DECODER_PARAM_DISABLE_DEBLOCKING, sys->disable_deblocking);
+            de265_set_parameter_bool(sys->ctx, DE265_DECODER_PARAM_DISABLE_SAO, sys->disable_sao);
         }
     }
 }
@@ -631,6 +645,8 @@ static int Open(vlc_object_t *p_this)
     sys->late_frames = 0;
     sys->decode_ratio = 100;
     sys->direct_rendering_used = -1;
+    sys->disable_deblocking = var_InheritBool(dec, "libde265-disable-deblocking");
+    sys->disable_sao = var_InheritBool(dec, "libde265-disable-sao");
 
     return VLC_SUCCESS;
 }
