@@ -61,8 +61,8 @@ static void Close(vlc_object_t *);
     "playing raw bitstreams. In the form 30000/1001 or 29.97")
 
 vlc_module_begin()
-    set_shortname(N_("libde265demux"))
-    set_description(N_("HEVC/H.265 raw bitstream demuxer"))
+    set_shortname(N_("Raw HEVC/H.265"))
+    set_description(N_("Raw HEVC/H.265 bitstream demuxer"))
     set_capability("demux", 200)
     set_category(CAT_INPUT)
     set_subcategory(SUBCAT_INPUT_DEMUX)
