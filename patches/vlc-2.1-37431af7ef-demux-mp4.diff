@@ -1,19 +1,73 @@
 Nur in src/demux/mp4/: .deps.
 Nur in src/demux/mp4/: .dirstamp.
-Nur in ../vlc-2.1/modules/demux/mp4/: id3genres.h.
 Nur in src/demux/mp4/: libde265_mkv_plugin_la-libmp4.lo.
 Nur in src/demux/mp4/: libde265_mkv_plugin_la-libmp4.o.
+Nur in src/demux/mp4/: libde265_mp4_plugin_la-libmp4.lo.
+Nur in src/demux/mp4/: libde265_mp4_plugin_la-libmp4.o.
 diff -ur ../vlc-2.1/modules/demux/mp4/libmp4.h src/demux/mp4/libmp4.h
---- ../vlc-2.1/modules/demux/mp4/libmp4.h	2014-04-01 14:59:31.000000000 +0200
-+++ src/demux/mp4/libmp4.h	2014-04-02 12:15:07.000000000 +0200
+--- ../vlc-2.1/modules/demux/mp4/libmp4.h	2014-04-10 12:27:29.000000000 +0200
++++ src/demux/mp4/libmp4.h	2014-05-07 14:34:05.000000000 +0200
 @@ -269,6 +269,8 @@
  # define MP4_VERBOSE  1
  #endif
  
-+#include <libde265_plugin_common.h>
++#include "../../../include/libde265_plugin_common.h"
 +
  struct MP4_Box_s;
  
  
 Nur in src/demux/mp4/: .libs.
-Nur in ../vlc-2.1/modules/demux/mp4/: mp4.c.
+diff -ur ../vlc-2.1/modules/demux/mp4/mp4.c src/demux/mp4/mp4.c
+--- ../vlc-2.1/modules/demux/mp4/mp4.c	2014-04-10 12:27:29.000000000 +0200
++++ src/demux/mp4/mp4.c	2014-06-23 13:51:23.000000000 +0200
+@@ -51,7 +51,7 @@
+     set_subcategory( SUBCAT_INPUT_DEMUX )
+     set_description( N_("MP4 stream demuxer") )
+     set_shortname( N_("MP4") )
+-    set_capability( "demux", 240 )
++    set_capability( "demux", 241 )
+     set_callbacks( Open, Close )
+ vlc_module_end ()
+ 
+@@ -1019,6 +1019,7 @@
+                 case ATOM_0xa9trk: /* Track */
+                     SET( vlc_meta_SetTrackNum );
+                     break;
++#if 0
+                 case ATOM_trkn:
+                 {
+                     char psz_trck[11];
+@@ -1033,6 +1034,7 @@
+                     }
+                     break;
+                 }
++#endif
+                 case ATOM_0xa9cmt: /* Commment */
+                     SET( vlc_meta_SetDescription );
+                     break;
+@@ -1716,7 +1718,7 @@
+                               p_track, i_sample_description_index, i_chunk );
+         p_demux->p_sys->f_fps = (float)p_track->fmt.video.i_frame_rate /
+                                 (float)p_track->fmt.video.i_frame_rate_base;
+-
++#if 0
+         /* Rotation */
+         switch( (int)p_track->f_rotation ) {
+             case 90:
+@@ -1729,7 +1731,7 @@
+                 p_track->fmt.video.orientation = ORIENT_ROTATED_270;
+                 break;
+         }
+-
++#endif
+         break;
+ 
+     case AUDIO_ES:
+@@ -2218,6 +2220,7 @@
+                 break;
+             }
+             case VLC_FOURCC( 'h', 'v', 'c', '1' ):
++            case VLC_FOURCC( 'h', 'e', 'v', '1' ):
+             {
+                 MP4_Box_t *p_hvcC = MP4_BoxGet( p_sample, "hvcC" );
+ 

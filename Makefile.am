@@ -65,6 +65,21 @@ if !HAVE_VLC_HEVC
 		include/vlc_codecs.h
 endif
 
+# older versions of vlc don't know about HEVC content in MP4
+if !HAVE_VLC_HEVC_MP4
+  lib_LTLIBRARIES += libde265_mp4_plugin.la
+
+  libde265_mp4_plugin_la_CFLAGS = -DHAVE_ATTRIBUTE_PACKED -DMODULE_STRING=\"mp4\" $(vlc_CFLAGS)
+  libde265_mp4_plugin_la_CPPFLAGS = -DHAVE_ATTRIBUTE_PACKED -DMODULE_STRING=\"mp4\" $(vlc_CFLAGS)
+  libde265_mp4_plugin_la_LIBADD = $(vlc_LIBS)
+  libde265_mp4_plugin_la_LDFLAGS = -avoid-version -module -export-symbol-regex ^vlc_entry $(vlc_LDFLAGS)
+  libde265_mp4_plugin_la_SOURCES = \
+		src/demux/mp4/id3genres.h \
+		src/demux/mp4/libmp4.c \
+		src/demux/mp4/libmp4.h \
+		src/demux/mp4/mp4.c
+endif
+
 # older versions of vlc don't know about HEVC content in MPEG-TS
 if !HAVE_VLC_HEVC_TS
   lib_LTLIBRARIES += libde265_ts_plugin.la

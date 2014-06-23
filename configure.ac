@@ -46,11 +46,12 @@ PKG_CHECK_MODULES([vlc212], [vlc-plugin >= 2.1],
     [have_vlc_hevc="no"])
 PKG_CHECK_MODULES([vlc220], [vlc-plugin >= 2.2],
     [AC_DEFINE([HAVE_VLC_HEVC_TS], [1], [Whether VLC with HEVC in MPEG-TS support was found.])
-     have_vlc_hevc_ts="yes"],
-    [have_vlc_hevc_ts="no"])
+     have_vlc_hevc_ts="yes" have_vlc_hevc_mp4="yes"],
+    [have_vlc_hevc_ts="no" have_vlc_hevc_mp4="no"])
 
 AM_CONDITIONAL([HAVE_VLC_HEVC], [test "x$have_vlc_hevc" != "xno"])
 AM_CONDITIONAL([HAVE_VLC_HEVC_TS], [test "x$have_vlc_hevc_ts" != "xno"])
+AM_CONDITIONAL([HAVE_VLC_HEVC_MP4], [test "x$have_vlc_hevc_mp4" != "xno"])
 
 if eval "test $have_vlc_hevc != yes" ; then
     AC_LANG_PUSH([C++])
