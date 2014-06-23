@@ -1,9 +1,17 @@
 Source: vlc-libde265
 Priority: optional
 Maintainer: Joachim Bauch <bauch@struktur.de>
-Build-Depends: debhelper (>= 6.0), libtool, automake, autoconf,
- pkg-config, libde265-dev (>= 0.7), libvlccore-dev,
- libebml-dev, libmatroska-dev, libdvbpsi-dev
+Build-Depends:
+ debhelper (>= 6.0),
+ libtool,
+ automake,
+ autoconf,
+ pkg-config,
+ libde265-dev (>= 0.7),
+ libvlccore-dev,
+ libebml-dev,
+ libmatroska-dev,
+ libdvbpsi-dev
 Standards-Version: 3.8.3
 Section: video
 Homepage: https://github.com/strukturag/vlc-libde265
@@ -11,7 +19,9 @@ Homepage: https://github.com/strukturag/vlc-libde265
 Package: vlc-plugin-libde265
 Section: video
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends},
+Depends:
+ ${shlibs:Depends},
+ ${misc:Depends},
  libde265 (>= 0.7)
 Recommends: vlc
 Description: HEVC/H.265 video decoder plugin for VLC
@@ -20,8 +30,10 @@ Description: HEVC/H.265 video decoder plugin for VLC
 Package: vlc-plugin-libde265-dbg
 Section: debug
 Architecture: any
-Depends: vlc-plugin-libde265 (= ${binary:Version}),
- ${shlibs:Depends}, ${misc:Depends}
+Depends:
+ vlc-plugin-libde265 (= ${binary:Version}),
+ ${shlibs:Depends},
+ ${misc:Depends}
 Description: HEVC/H.265 video decoder plugin for VLC - debug symbols
  HEVC/H.265 video decoder plugin for VLC using libde265 for decoding.
  .
