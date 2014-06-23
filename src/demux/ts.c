@@ -136,8 +136,8 @@ static void Close ( vlc_object_t * );
 
 
 vlc_module_begin ()
-    set_description( N_("MPEG Transport Stream demuxer") )
-    set_shortname ( "MPEG-TS" )
+    set_description( N_("MPEG Transport Stream demuxer with support for HEVC/H.265 video") )
+    set_shortname ( "MPEG-TS (HEVC/H.265)" )
     set_category( CAT_INPUT )
     set_subcategory( SUBCAT_INPUT_DEMUX )
 

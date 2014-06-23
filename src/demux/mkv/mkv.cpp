@@ -43,8 +43,8 @@ static int  Open ( vlc_object_t * );
 static void Close( vlc_object_t * );
 
 vlc_module_begin ()
-    set_shortname( "Matroska" )
-    set_description( N_("Matroska stream demuxer" ) )
+    set_shortname( "Matroska (HEVC/H.265)" )
+    set_description( N_("Matroska stream demuxer with support for HEVC/H.265 video" ) )
     set_capability( "demux", 100 )
     set_callbacks( Open, Close )
     set_category( CAT_INPUT )

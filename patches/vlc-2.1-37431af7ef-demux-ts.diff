@@ -1,14 +1,25 @@
 --- ../vlc-2.1/modules/demux/ts.c	2014-04-10 12:27:29.000000000 +0200
-+++ src/demux/ts.c	2014-05-06 13:38:30.000000000 +0200
++++ src/demux/ts.c	2014-06-23 15:12:32.000000000 +0200
 @@ -63,6 +63,8 @@
  
  #include "../mux/mpeg/dvbpsi_compat.h"
  
-+#include <libde265_plugin_common.h>
++#include "../../include/libde265_plugin_common.h"
 +
  #undef TS_DEBUG
  VLC_FORMAT(1, 2) static void ts_debug(const char *format, ...)
  {
+@@ -134,8 +136,8 @@
+ 
+ 
+ vlc_module_begin ()
+-    set_description( N_("MPEG Transport Stream demuxer") )
+-    set_shortname ( "MPEG-TS" )
++    set_description( N_("MPEG Transport Stream demuxer with support for HEVC/H.265 video") )
++    set_shortname ( "MPEG-TS (HEVC/H.265)" )
+     set_category( CAT_INPUT )
+     set_subcategory( SUBCAT_INPUT_DEMUX )
+ 
 @@ -158,7 +160,7 @@
  
      add_obsolete_bool( "ts-silent" );

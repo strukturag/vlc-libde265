@@ -4,6 +4,8 @@ Nur in src/demux/mp4/: libde265_mkv_plugin_la-libmp4.lo.
 Nur in src/demux/mp4/: libde265_mkv_plugin_la-libmp4.o.
 Nur in src/demux/mp4/: libde265_mp4_plugin_la-libmp4.lo.
 Nur in src/demux/mp4/: libde265_mp4_plugin_la-libmp4.o.
+Nur in src/demux/mp4/: libde265_mp4_plugin_la-mp4.lo.
+Nur in src/demux/mp4/: libde265_mp4_plugin_la-mp4.o.
 diff -ur ../vlc-2.1/modules/demux/mp4/libmp4.h src/demux/mp4/libmp4.h
 --- ../vlc-2.1/modules/demux/mp4/libmp4.h	2014-04-10 12:27:29.000000000 +0200
 +++ src/demux/mp4/libmp4.h	2014-05-07 14:34:05.000000000 +0200
@@ -19,12 +21,16 @@ diff -ur ../vlc-2.1/modules/demux/mp4/libmp4.h src/demux/mp4/libmp4.h
 Nur in src/demux/mp4/: .libs.
 diff -ur ../vlc-2.1/modules/demux/mp4/mp4.c src/demux/mp4/mp4.c
 --- ../vlc-2.1/modules/demux/mp4/mp4.c	2014-04-10 12:27:29.000000000 +0200
-+++ src/demux/mp4/mp4.c	2014-06-23 13:51:23.000000000 +0200
-@@ -51,7 +51,7 @@
++++ src/demux/mp4/mp4.c	2014-06-23 15:12:46.000000000 +0200
+@@ -49,9 +49,9 @@
+ vlc_module_begin ()
+     set_category( CAT_INPUT )
      set_subcategory( SUBCAT_INPUT_DEMUX )
-     set_description( N_("MP4 stream demuxer") )
-     set_shortname( N_("MP4") )
+-    set_description( N_("MP4 stream demuxer") )
+-    set_shortname( N_("MP4") )
 -    set_capability( "demux", 240 )
++    set_description( N_("MP4 stream demuxer with support for HEVC/H.265 video") )
++    set_shortname( N_("MP4 (HEVC/H.265)") )
 +    set_capability( "demux", 241 )
      set_callbacks( Open, Close )
  vlc_module_end ()

@@ -22,7 +22,7 @@ Nur in src/demux/mkv/: libde265_mkv_plugin_la-virtual_segment.lo.
 Nur in src/demux/mkv/: libde265_mkv_plugin_la-virtual_segment.o.
 Nur in src/demux/mkv/: .libs.
 diff -ur ../vlc-2.1/modules/demux/mkv/matroska_segment.cpp src/demux/mkv/matroska_segment.cpp
---- ../vlc-2.1/modules/demux/mkv/matroska_segment.cpp	2014-04-01 14:59:31.000000000 +0200
+--- ../vlc-2.1/modules/demux/mkv/matroska_segment.cpp	2014-04-10 12:27:29.000000000 +0200
 +++ src/demux/mkv/matroska_segment.cpp	2014-04-02 11:20:50.000000000 +0200
 @@ -259,7 +259,9 @@
                       {vlc_meta_URL,         "URL",           0},
@@ -35,8 +35,17 @@ diff -ur ../vlc-2.1/modules/demux/mkv/matroska_segment.cpp src/demux/mkv/matrosk
  };
  
 diff -ur ../vlc-2.1/modules/demux/mkv/matroska_segment_parse.cpp src/demux/mkv/matroska_segment_parse.cpp
---- ../vlc-2.1/modules/demux/mkv/matroska_segment_parse.cpp	2014-04-01 14:59:31.000000000 +0200
-+++ src/demux/mkv/matroska_segment_parse.cpp	2014-04-02 12:20:39.000000000 +0200
+--- ../vlc-2.1/modules/demux/mkv/matroska_segment_parse.cpp	2014-04-10 12:27:29.000000000 +0200
++++ src/demux/mkv/matroska_segment_parse.cpp	2014-05-07 14:35:00.000000000 +0200
+@@ -32,7 +32,7 @@
+ #include "../vobsub.h"
+ }
+ 
+-#include <vlc_codecs.h>
++#include "../../../include/vlc_codecs.h"
+ 
+ /* GetFourCC helper */
+ #define GetFOURCC( p )  __GetFOURCC( (uint8_t*)p )
 @@ -1349,11 +1349,6 @@
          p_tk->fmt.i_codec = VLC_CODEC_VP8;
          p_tk->b_pts_only = true;
@@ -50,13 +59,17 @@ diff -ur ../vlc-2.1/modules/demux/mkv/matroska_segment_parse.cpp src/demux/mkv/m
      {
          if( !strcmp( p_tk->psz_codec, "V_MPEG4/MS/V3" ) )
 diff -ur ../vlc-2.1/modules/demux/mkv/mkv.cpp src/demux/mkv/mkv.cpp
---- ../vlc-2.1/modules/demux/mkv/mkv.cpp	2014-04-01 14:59:31.000000000 +0200
-+++ src/demux/mkv/mkv.cpp	2014-04-02 12:09:35.000000000 +0200
-@@ -45,7 +45,7 @@
+--- ../vlc-2.1/modules/demux/mkv/mkv.cpp	2014-04-10 12:27:29.000000000 +0200
++++ src/demux/mkv/mkv.cpp	2014-06-23 15:11:44.000000000 +0200
+@@ -43,9 +43,9 @@
+ static void Close( vlc_object_t * );
+ 
  vlc_module_begin ()
-     set_shortname( "Matroska" )
-     set_description( N_("Matroska stream demuxer" ) )
+-    set_shortname( "Matroska" )
+-    set_description( N_("Matroska stream demuxer" ) )
 -    set_capability( "demux", 50 )
++    set_shortname( "Matroska (HEVC/H.265)" )
++    set_description( N_("Matroska stream demuxer with support for HEVC/H.265 video" ) )
 +    set_capability( "demux", 100 )
      set_callbacks( Open, Close )
      set_category( CAT_INPUT )
@@ -71,13 +84,13 @@ diff -ur ../vlc-2.1/modules/demux/mkv/mkv.cpp src/demux/mkv/mkv.cpp
                                                              p_demux,
                                                              s_url.c_str() );
 diff -ur ../vlc-2.1/modules/demux/mkv/mkv.hpp src/demux/mkv/mkv.hpp
---- ../vlc-2.1/modules/demux/mkv/mkv.hpp	2014-04-01 14:59:31.000000000 +0200
-+++ src/demux/mkv/mkv.hpp	2014-04-02 11:19:58.000000000 +0200
+--- ../vlc-2.1/modules/demux/mkv/mkv.hpp	2014-04-10 12:27:29.000000000 +0200
++++ src/demux/mkv/mkv.hpp	2014-05-07 14:34:33.000000000 +0200
 @@ -103,6 +103,8 @@
  #   include <zlib.h>
  #endif
  
-+#include <libde265_plugin_common.h>
++#include "../../../include/libde265_plugin_common.h"
 +
  #define MKV_DEBUG 0
  
