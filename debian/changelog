@@ -1,3 +1,13 @@
+vlc-libde265 (0.1.5-1ppa1) unstable; urgency=low
+
+  * Added raw HEVC/H.265 bitstream demuxer.
+  * Added patched MP4 demuxer with support for HEVC/H.265 video.
+  * Decode NAL blocks in extra data, fixes crashes/image errors with
+    some packetized streams.
+  * Added first entries to VLC settings (demuxer/codec).
+
+ -- Joachim Bauch <bauch@struktur.de>  Mon, 23 Jun 2014 16:01:24 +0200
+
 vlc-libde265 (0.1.4-1ppa1) unstable; urgency=low
 
   * Include "libde265" in module description (GitHub issue #2).
