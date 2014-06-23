@@ -367,7 +367,8 @@ static int Demux(demux_t *p_demux)
         return 0;
     }
 
-    p_block->i_dts = p_block->i_pts = VLC_TS_0 + pcr;
+    p_block->i_pts = VLC_TS_INVALID;
+    p_block->i_dts = VLC_TS_0 + pcr;
     es_out_Send(p_demux->out, sys->es_video, p_block);
 
     if (new_picture) {
