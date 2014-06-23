@@ -146,9 +146,41 @@ static picture_t *Decode(decoder_t *dec, block_t **pp_block)
         if (extra_length > 0) {
             unsigned char *extra = (unsigned char *) dec->fmt_in.p_extra;
             if (extra_length > 3 && extra != NULL && (extra[0] || extra[1] || extra[2] > 1)) {
+                // encoded in "hvcC" format (assume version 0)
                 sys->packetized = true;
-                if (extra_length > 21) {
+                if (extra_length > 22) {
+                    if (extra[0] != 0) {
+                        msg_Warn(dec, "Unsupported extra data version %d, decoding may fail", extra[0]);
+                    }
                     sys->length_size = (extra[21] & 3) + 1;
+                    int num_param_sets = extra[22];
+                    int pos = 23;
+                    for (int i=0; i<num_param_sets; i++) {
+                        if (pos + 3 > extra_length) {
+                            msg_Err(dec, "Buffer underrun in extra header (%d >= %d)", pos + 3, extra_length);
+                            goto error;
+                        }
+                        // ignore flags + NAL type (1 byte)
+                        int nal_count  = extra[pos+1] << 8 | extra[pos+2];
+                        pos += 3;
+                        for (int j=0; j<nal_count; j++) {
+                            if (pos + 2 > extra_length) {
+                                msg_Err(dec, "Buffer underrun in extra nal header (%d >= %d)", pos + 2, extra_length);
+                                goto error;
+                            }
+                            int nal_size = extra[pos] << 8 | extra[pos+1];
+                            if (pos + 2 + nal_size > extra_length) {
+                                msg_Err(dec, "Buffer underrun in extra nal (%d >= %d)", pos + 2 + nal_size, extra_length);
+                                goto error;
+                            }
+                            err = de265_push_NAL(ctx, extra + pos + 2, nal_size, 0, NULL);
+                            if (!de265_isOK(err)) {
+                                msg_Err(dec, "Failed to push data: %s (%d)", de265_get_error_text(err), err);
+                                goto error;
+                            }
+                            pos += 2 + nal_size;
+                        }
+                    }
                 }
                 msg_Dbg(dec, "Assuming packetized data (%d bytes length)", sys->length_size);
             } else {
