@@ -1,3 +1,9 @@
+vlc-libde265 (0.1.5-2ppa1) unstable; urgency=low
+
+  * Update plugin cache on installation/removal.
+
+ -- Joachim Bauch <bauch@struktur.de>  Mon, 04 Aug 2014 14:56:47 +0200
+
 vlc-libde265 (0.1.5-1ppa1) unstable; urgency=low
 
   * Added raw HEVC/H.265 bitstream demuxer.
