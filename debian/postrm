@@ -1,0 +1,12 @@
+#!/bin/sh
+
+set -e
+
+if [ "$1" = "remove" ]; then
+    if [ -x /usr/lib/vlc/vlc-cache-gen ]; then
+        echo "Updating VLC plugin cache..."
+        /usr/lib/vlc/vlc-cache-gen /usr/lib/vlc/plugins/ || true
+    fi
+fi
+
+#DEBHELPER#
