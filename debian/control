@@ -21,8 +21,7 @@ Section: video
 Architecture: any
 Depends:
  ${shlibs:Depends},
- ${misc:Depends},
- libde265 (>= 0.7)
+ ${misc:Depends}
 Recommends: vlc
 Description: HEVC/H.265 video decoder plugin for VLC
  HEVC/H.265 video decoder plugin for VLC using libde265 for decoding.
