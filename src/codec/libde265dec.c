@@ -446,6 +446,7 @@ static void ReleasePictureRef(struct picture_ref_t *ref)
  *****************************************************************************/
 static picture_t *GetPicture(decoder_t *dec, struct de265_image_spec* spec)
 {
+    decoder_sys_t *sys = dec->p_sys;
     int width = spec->width;
     int height = spec->height;
 
@@ -457,6 +458,19 @@ static picture_t *GetPicture(decoder_t *dec, struct de265_image_spec* spec)
         return NULL;
     }
 
+    const vlc_chroma_description_t *dsc = vlc_fourcc_GetChromaDescription(dec->fmt_out.video.i_chroma);
+    for (unsigned int i=0; dsc && i<dsc->plane_count; i++) {
+        int alignment = spec->alignment * dsc->p[i].w.den;
+        int aligned_width = (width + alignment - 1) / alignment * alignment;
+        if (width != aligned_width) {
+            if (sys->direct_rendering_used != 0) {
+                msg_Dbg(dec, "plane %d: aligned width doesn't match (%d/%d)",
+                        i, width, aligned_width);
+            }
+            return NULL;
+        }
+    }
+
     dec->fmt_out.video.i_width = width;
     dec->fmt_out.video.i_height = height;
 
@@ -466,6 +480,8 @@ static picture_t *GetPicture(decoder_t *dec, struct de265_image_spec* spec)
         dec->fmt_out.video.i_visible_width = spec->visible_width;
         dec->fmt_out.video.i_visible_height = spec->visible_height;
     } else {
+        dec->fmt_out.video.i_x_offset = 0;
+        dec->fmt_out.video.i_y_offset = 0;
         dec->fmt_out.video.i_visible_width = width;
         dec->fmt_out.video.i_visible_height = height;
     }
@@ -475,7 +491,6 @@ static picture_t *GetPicture(decoder_t *dec, struct de265_image_spec* spec)
         return NULL;
     }
 
-    decoder_sys_t *sys = dec->p_sys;
     if (pic->p[0].i_pitch < width * pic->p[0].i_pixel_pitch) {
         if (sys->direct_rendering_used != 0) {
             msg_Dbg(dec, "plane 0: pitch too small (%d/%d*%d)",
@@ -634,6 +649,7 @@ static int Open(vlc_object_t *p_this)
     dec->pf_decode_video = Decode;
 
     dec->fmt_out.i_cat = VIDEO_ES;
+    dec->fmt_out.video.i_chroma = VLC_CODEC_I420;
     dec->fmt_out.video.i_width = dec->fmt_in.video.i_width;
     dec->fmt_out.video.i_height = dec->fmt_in.video.i_height;
     dec->fmt_out.i_codec = VLC_CODEC_I420;
