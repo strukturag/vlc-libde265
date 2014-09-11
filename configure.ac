@@ -1,6 +1,6 @@
 # Process this file with autoconf to produce a configure script.
 AC_PREREQ([2.68])
-AC_INIT([vlc-libde265], [0.1.5], [bauch@struktur.de])
+AC_INIT([vlc-libde265], [0.1.6], [bauch@struktur.de])
 AC_CONFIG_SRCDIR([src/codec/libde265dec.c])
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_MACRO_DIR([m4])
