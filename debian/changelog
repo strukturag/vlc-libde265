@@ -1,3 +1,12 @@
+vlc-libde265 (0.1.6-1ppa1) unstable; urgency=low
+
+  * Don't pin version of libde265 in "Depends", determined
+    automatically.
+  * Added early check to disable direct rendering if image alignment
+    doesn't match what libde265 requires.
+
+ -- Joachim Bauch <bauch@struktur.de>  Thu, 11 Sep 2014 16:46:49 +0200
+
 vlc-libde265 (0.1.5-2ppa2) unstable; urgency=low
 
   * Enabled armhf builds.
