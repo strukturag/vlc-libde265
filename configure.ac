@@ -48,6 +48,10 @@ PKG_CHECK_MODULES([vlc220], [vlc-plugin >= 2.2],
     [AC_DEFINE([HAVE_VLC_HEVC_TS], [1], [Whether VLC with HEVC in MPEG-TS support was found.])
      have_vlc_hevc_ts="yes" have_vlc_hevc_mp4="yes"],
     [have_vlc_hevc_ts="no" have_vlc_hevc_mp4="no"])
+PKG_CHECK_MODULES([vlc300], [vlc-plugin >= 3.0],
+    [AC_DEFINE([HAVE_VLC_REFCOUNT_PICTURE], [1], [Whether VLC refcounts pictures directly.])
+     have_vlc_refcount_picture="yes"],
+    [have_vlc_refcount_picture="no"])
 
 AM_CONDITIONAL([HAVE_VLC_HEVC], [test "x$have_vlc_hevc" != "xno"])
 AM_CONDITIONAL([HAVE_VLC_HEVC_TS], [test "x$have_vlc_hevc_ts" != "xno"])

@@ -27,6 +27,8 @@
 # include "config.h"
 #endif
 
+#include <assert.h>
+
 #include <vlc_common.h>
 #include <vlc_plugin.h>
 #include <vlc_codec.h>
@@ -69,6 +71,19 @@
  ****************************************************************************/
 static int Open(vlc_object_t *);
 static void Close(vlc_object_t *);
+
+#define CODEC_UNKNOWN  VLC_FOURCC(0xff, 0xff, 0xff, 0xff)
+
+#if LIBDE265_NUMERIC_VERSION < 0x01000000
+// libde265 < 1.0 only supported 8 bits per pixel
+#define de265_get_bits_per_pixel(image, plane) 8
+#endif
+
+#ifdef HAVE_VLC_REFCOUNT_PICTURE
+#define decoder_DeletePicture(decoder, picture) picture_Release(picture)
+#define decoder_LinkPicture(decoder, picture) picture_Hold(picture)
+#define decoder_UnlinkPicture(decoder, picture) picture_Release(picture)
+#endif
 
 /*****************************************************************************
  * Module descriptor
@@ -113,6 +128,130 @@ struct picture_ref_t
     decoder_t *decoder;
     picture_t *picture;
 };
+
+static inline enum de265_chroma ImageFormatToChroma(enum de265_image_format format) {
+    switch (format) {
+    case de265_image_format_mono8:
+        return de265_chroma_mono;
+    case de265_image_format_YUV420P8:
+        return de265_chroma_420;
+    case de265_image_format_YUV422P8:
+        return de265_chroma_422;
+    case de265_image_format_YUV444P8:
+        return de265_chroma_444;
+    default:
+        assert(false);
+        return 0;
+    }
+}
+
+static vlc_fourcc_t GetVlcCodec(decoder_t *dec, enum de265_chroma chroma, int bits_per_pixel) {
+    vlc_fourcc_t result = CODEC_UNKNOWN;
+    switch (chroma) {
+    case de265_chroma_mono:
+        result = VLC_CODEC_GREY;
+        break;
+    case de265_chroma_420:
+        switch (bits_per_pixel) {
+        case 8:
+            result = VLC_CODEC_I420;
+            break;
+        case 9:
+            result = VLC_CODEC_I420_9L;
+            break;
+        case 10:
+            result = VLC_CODEC_I420_10L;
+            break;
+        default:
+            if (bits_per_pixel > 10 && bits_per_pixel <= 16) {
+#ifdef VLC_CODEC_I420_16L
+                result = VLC_CODEC_I420_16L;
+#else
+                result = VLC_CODEC_I420_10L;
+#endif
+            } else {
+                msg_Err(dec, "Unsupported output colorspace %d with %d bits per pixel",
+                    chroma, bits_per_pixel);
+            }
+            break;
+        }
+        break;
+    case de265_chroma_422:
+        switch (bits_per_pixel) {
+        case 8:
+            result = VLC_CODEC_I422;
+            break;
+        case 9:
+            result = VLC_CODEC_I422_9L;
+            break;
+        case 10:
+            result = VLC_CODEC_I422_10L;
+            break;
+        default:
+            if (bits_per_pixel > 10 && bits_per_pixel <= 16) {
+#ifdef VLC_CODEC_I422_16L
+                result = VLC_CODEC_I422_16L;
+#else
+                result = VLC_CODEC_I422_10L;
+#endif
+            } else {
+                msg_Err(dec, "Unsupported output colorspace %d with %d bits per pixel",
+                    chroma, bits_per_pixel);
+            }
+            break;
+        }
+        break;
+    case de265_chroma_444:
+        switch (bits_per_pixel) {
+        case 8:
+            result = VLC_CODEC_I444;
+            break;
+        case 9:
+            result = VLC_CODEC_I444_9L;
+            break;
+        case 10:
+            result = VLC_CODEC_I444_10L;
+            break;
+        default:
+            if (bits_per_pixel > 10 && bits_per_pixel <= 16) {
+#ifdef VLC_CODEC_I444_16L
+                result = VLC_CODEC_I444_16L;
+#else
+                result = VLC_CODEC_I444_10L;
+#endif
+            } else {
+                msg_Err(dec, "Unsupported output colorspace %d with %d bits per pixel",
+                    chroma, bits_per_pixel);
+            }
+            break;
+        }
+        break;
+    default:
+        msg_Err(dec, "Unsupported output colorspace %d",
+            chroma);
+        break;
+    }
+    return result;
+}
+
+static bool IsCodec16Bit(vlc_fourcc_t codec) {
+    switch (codec) {
+#ifdef VLC_CODEC_I420_16L
+    case VLC_CODEC_I420_16L:
+        return true;
+#endif
+#ifdef VLC_CODEC_I422_16L
+    case VLC_CODEC_I422_16L:
+        return true;
+#endif
+#ifdef VLC_CODEC_I444_16L
+    case VLC_CODEC_I444_16L:
+        return true;
+#endif
+    default:
+        return false;
+    }
+}
 
 /*****************************************************************************
  * SetDecodeRation: tell the decoder to decode only a percentage of the framerate
@@ -357,11 +496,6 @@ static picture_t *Decode(decoder_t *dec, block_t **pp_block)
             return NULL;
         }
 
-        if (de265_get_chroma_format(image) != de265_chroma_420) {
-            msg_Err(dec, "Unsupported output colorspace %d", de265_get_chroma_format(image));
-            return NULL;
-        }
-
         if (use_decoder_pts) {
             pts = de265_get_image_PTS(image);
         }
@@ -382,7 +516,22 @@ static picture_t *Decode(decoder_t *dec, block_t **pp_block)
         }
     } while (!drawpicture);
 
+    int bits_per_pixel = __MAX(__MAX(de265_get_bits_per_pixel(image, 0),
+                                     de265_get_bits_per_pixel(image, 1)),
+                               de265_get_bits_per_pixel(image, 2));
+
+    vlc_fourcc_t chroma = GetVlcCodec(dec,
+        de265_get_chroma_format(image),
+        bits_per_pixel);
+    if (chroma == CODEC_UNKNOWN) {
+        return NULL;
+    }
+
+    dec->fmt_out.i_codec = chroma;
+
     video_format_t *v = &dec->fmt_out.video;
+    v->i_chroma = chroma;
+
     int width = de265_get_image_width(image, 0);
     int height = de265_get_image_height(image, 0);
 
@@ -406,17 +555,68 @@ static picture_t *Decode(decoder_t *dec, block_t **pp_block)
         if (!pic)
             return NULL;
 
+        const vlc_chroma_description_t *vlc_chroma = vlc_fourcc_GetChromaDescription(chroma);
+        assert(vlc_chroma != NULL);
+
+        int max_bits_per_pixel = vlc_chroma->pixel_bits;
         for (int plane = 0; plane < pic->i_planes; plane++ ) {
             int src_stride;
             const uint8_t *src = de265_get_image_plane(image, plane, &src_stride);
+            int plane_bits_per_pixel = de265_get_bits_per_pixel(image, plane);
             int dst_stride = pic->p[plane].i_pitch;
             uint8_t *dst = pic->p[plane].p_pixels;
 
             int size = __MIN( src_stride, dst_stride );
-            for( int line = 0; line < pic->p[plane].i_visible_lines; line++ ) {
-                memcpy( dst, src, size );
-                src += src_stride;
-                dst += dst_stride;
+            if (plane_bits_per_pixel > max_bits_per_pixel) {
+                // More bits per pixel in this plane than supported by the VLC output format
+                int shift = (plane_bits_per_pixel - max_bits_per_pixel);
+                for( int line = 0; line < pic->p[plane].i_visible_lines; line++ ) {
+                    uint16_t *s = (uint16_t *) src;
+                    uint16_t *d = (uint16_t *) dst;
+                    for (int pos=0; pos<size/2; pos++) {
+                        *d = *s >> shift;
+                        d++;
+                        s++;
+                    }
+                    src += src_stride;
+                    dst += dst_stride;
+                }
+            } else if (plane_bits_per_pixel < max_bits_per_pixel && plane_bits_per_pixel > 8) {
+                // Less bits per pixel in this plane than the rest of the picture
+                // but more than 8bpp.
+                int shift = (max_bits_per_pixel - plane_bits_per_pixel);
+                for( int line = 0; line < pic->p[plane].i_visible_lines; line++ ) {
+                    uint16_t *s = (uint16_t *) src;
+                    uint16_t *d = (uint16_t *) dst;
+                    for (int pos=0; pos<size/2; pos++) {
+                        *d = *s << shift;
+                        d++;
+                        s++;
+                    }
+                    src += src_stride;
+                    dst += dst_stride;
+                }
+            } else if (plane_bits_per_pixel < max_bits_per_pixel && plane_bits_per_pixel == 8) {
+                // 8 bits per pixel in this plane, which is less than the rest of the picture.
+                int shift = (max_bits_per_pixel - plane_bits_per_pixel);
+                for( int line = 0; line < pic->p[plane].i_visible_lines; line++ ) {
+                    uint8_t *s = (uint8_t *) src;
+                    uint16_t *d = (uint16_t *) dst;
+                    for (int pos=0; pos<size; pos++) {
+                        *d = *s << shift;
+                        d++;
+                        s++;
+                    }
+                    src += src_stride;
+                    dst += dst_stride;
+                }
+            } else {
+                // Bits per pixel of image match output format.
+                for( int line = 0; line < pic->p[plane].i_visible_lines; line++ ) {
+                    memcpy( dst, src, size );
+                    src += src_stride;
+                    dst += dst_stride;
+                }
             }
         }
     }
@@ -444,33 +644,62 @@ static void ReleasePictureRef(struct picture_ref_t *ref)
 /*****************************************************************************
  * GetPicture: create a vlc picture that can be used for direct rendering
  *****************************************************************************/
-static picture_t *GetPicture(decoder_t *dec, struct de265_image_spec* spec)
+static picture_t *GetPicture(decoder_t *dec, struct de265_image_spec* spec, struct de265_image *image)
 {
     decoder_sys_t *sys = dec->p_sys;
-    int width = spec->width;
+    int width = (spec->width + spec->alignment - 1) / spec->alignment * spec->alignment;
     int height = spec->height;
 
-    if (width % spec->alignment) {
-        width += spec->alignment - (width % spec->alignment);
-    }
     if (width == 0 || height == 0 || width > 8192 || height > 8192) {
         msg_Err(dec, "Invalid frame size %dx%d.", width, height);
         return NULL;
     }
 
-    const vlc_chroma_description_t *dsc = vlc_fourcc_GetChromaDescription(dec->fmt_out.video.i_chroma);
+    if (de265_get_bits_per_pixel(image, 0) != de265_get_bits_per_pixel(image, 1) ||
+        de265_get_bits_per_pixel(image, 0) != de265_get_bits_per_pixel(image, 2) ||
+        de265_get_bits_per_pixel(image, 1) != de265_get_bits_per_pixel(image, 2)) {
+        if (sys->direct_rendering_used != 0) {
+            msg_Dbg(dec, "input format has multiple bits per pixel (%d/%d/d)",
+                    de265_get_bits_per_pixel(image, 0),
+                    de265_get_bits_per_pixel(image, 1),
+                    de265_get_bits_per_pixel(image, 2));
+        }
+        return NULL;
+    }
+
+    int bits_per_pixel = de265_get_bits_per_pixel(image, 0);
+    vlc_fourcc_t chroma = GetVlcCodec(dec,
+        ImageFormatToChroma(spec->format),
+        bits_per_pixel);
+    if (chroma == CODEC_UNKNOWN) {
+        // Unsupported chroma format.
+        return NULL;
+    }
+
+    const vlc_chroma_description_t *dsc = vlc_fourcc_GetChromaDescription(chroma);
+    assert(dsc != NULL);
+    if (dsc->pixel_bits < bits_per_pixel) {
+        if (sys->direct_rendering_used != 0) {
+            msg_Dbg(dec, "output format doesn't provide enough bits per pixel (%d/%d)",
+                    dsc->pixel_bits, bits_per_pixel);
+        }
+        return NULL;
+    }
+
     for (unsigned int i=0; dsc && i<dsc->plane_count; i++) {
-        int alignment = spec->alignment * dsc->p[i].w.den;
-        int aligned_width = (width + alignment - 1) / alignment * alignment;
-        if (width != aligned_width) {
+        int plane_width = width * dsc->p[i].w.num / dsc->p[i].w.den;
+        int aligned_width = (plane_width + spec->alignment - 1) / spec->alignment * spec->alignment;;
+        if (plane_width != aligned_width) {
             if (sys->direct_rendering_used != 0) {
                 msg_Dbg(dec, "plane %d: aligned width doesn't match (%d/%d)",
-                        i, width, aligned_width);
+                        i, plane_width, aligned_width);
             }
             return NULL;
         }
     }
 
+    dec->fmt_out.i_codec = chroma;
+    dec->fmt_out.video.i_chroma = chroma;
     dec->fmt_out.video.i_width = width;
     dec->fmt_out.video.i_height = height;
 
@@ -537,7 +766,7 @@ static int GetBuffer(de265_decoder_context* ctx, struct de265_image_spec* spec, 
     decoder_t *dec = (decoder_t *) userdata;
     decoder_sys_t *sys = dec->p_sys;
 
-    picture_t *pic = GetPicture(dec, spec);
+    picture_t *pic = GetPicture(dec, spec, img);
     if (pic == NULL) {
         if (sys->direct_rendering_used != 0) {
             msg_Warn(dec, "disabling direct rendering");

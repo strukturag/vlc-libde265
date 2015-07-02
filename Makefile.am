@@ -12,6 +12,11 @@ EXTRA_DIST = \
 
 lib_LTLIBRARIES = libde265_plugin.la
 
+CFLAGS = -DVLC_MODULE_COPYRIGHT="\"Copyright \(c) struktur AG\""
+CFLAGS += -DVLC_MODULE_LICENSE=\"LGPL\"
+
+
+
 libde265_plugin_la_CFLAGS = -DMODULE_STRING=\"de265\" $(libde265_CFLAGS) $(vlc_CFLAGS)
 libde265_plugin_la_CPPFLAGS = -DMODULE_STRING=\"de265\" $(libde265_CFLAGS) $(vlc_CFLAGS)
 libde265_plugin_la_LIBADD = $(libde265_LIBS) $(vlc_LIBS)
