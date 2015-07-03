@@ -659,7 +659,7 @@ static picture_t *GetPicture(decoder_t *dec, struct de265_image_spec* spec, stru
         de265_get_bits_per_pixel(image, 0) != de265_get_bits_per_pixel(image, 2) ||
         de265_get_bits_per_pixel(image, 1) != de265_get_bits_per_pixel(image, 2)) {
         if (sys->direct_rendering_used != 0) {
-            msg_Dbg(dec, "input format has multiple bits per pixel (%d/%d/d)",
+            msg_Dbg(dec, "input format has multiple bits per pixel (%d/%d/%d)",
                     de265_get_bits_per_pixel(image, 0),
                     de265_get_bits_per_pixel(image, 1),
                     de265_get_bits_per_pixel(image, 2));
