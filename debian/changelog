@@ -1,3 +1,11 @@
+vlc-libde265 (0.1.7-1ppa1) unstable; urgency=low
+
+  * Support different chroma formats and bit depths with libde265 1.0.0
+    and later.
+  * Depend on libde265-dev >= 1.0.2.
+
+ -- Joachim Bauch <bauch@struktur.de>  Wed, 15 Jul 2015 16:19:56 +0200
+
 vlc-libde265 (0.1.6-1ppa1) unstable; urgency=low
 
   * Don't pin version of libde265 in "Depends", determined
