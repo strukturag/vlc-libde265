@@ -815,7 +815,11 @@ static int Open(vlc_object_t *p_this)
 {
     decoder_t *dec = (decoder_t *)p_this;
 
-    if (dec->fmt_in.i_codec != VLC_CODEC_HEVC && dec->fmt_in.i_codec != VLC_CODEC_HEV1) {
+    if (dec->fmt_in.i_codec != VLC_CODEC_HEVC
+#ifdef VLC_CODEC_HEV1
+        && dec->fmt_in.i_codec != VLC_CODEC_HEV1
+#endif
+    ) {
         return VLC_EGENERIC;
     }
 
