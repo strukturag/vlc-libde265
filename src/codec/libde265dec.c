@@ -660,7 +660,7 @@ static picture_t *GetPicture(decoder_t *dec, struct de265_image_spec* spec, stru
 
     const vlc_chroma_description_t *dsc = vlc_fourcc_GetChromaDescription(chroma);
     assert(dsc != NULL);
-    if (dsc->pixel_bits < bits_per_pixel) {
+    if (dsc->pixel_bits < (unsigned) bits_per_pixel) {
         if (sys->direct_rendering_used != 0) {
             msg_Dbg(dec, "output format doesn't provide enough bits per pixel (%d/%d)",
                     dsc->pixel_bits, bits_per_pixel);
