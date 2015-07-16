@@ -234,25 +234,6 @@ static vlc_fourcc_t GetVlcCodec(decoder_t *dec, enum de265_chroma chroma, int bi
     return result;
 }
 
-static bool IsCodec16Bit(vlc_fourcc_t codec) {
-    switch (codec) {
-#ifdef VLC_CODEC_I420_16L
-    case VLC_CODEC_I420_16L:
-        return true;
-#endif
-#ifdef VLC_CODEC_I422_16L
-    case VLC_CODEC_I422_16L:
-        return true;
-#endif
-#ifdef VLC_CODEC_I444_16L
-    case VLC_CODEC_I444_16L:
-        return true;
-#endif
-    default:
-        return false;
-    }
-}
-
 /*****************************************************************************
  * SetDecodeRation: tell the decoder to decode only a percentage of the framerate
  *****************************************************************************/
