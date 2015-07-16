@@ -66,6 +66,10 @@
     "usually has a detrimental effect on quality. However it provides a big " \
     "speedup for high definition streams.")
 
+#ifndef VLC_CODEC_HEV1
+#define VLC_CODEC_HEV1 VLC_FOURCC('h','e','v','1')
+#endif
+
 /****************************************************************************
  * Local prototypes
  ****************************************************************************/
@@ -815,11 +819,7 @@ static int Open(vlc_object_t *p_this)
 {
     decoder_t *dec = (decoder_t *)p_this;
 
-    if (dec->fmt_in.i_codec != VLC_CODEC_HEVC
-#ifdef VLC_CODEC_HEV1
-        && dec->fmt_in.i_codec != VLC_CODEC_HEV1
-#endif
-    ) {
+    if (dec->fmt_in.i_codec != VLC_CODEC_HEVC && dec->fmt_in.i_codec != VLC_CODEC_HEV1) {
         return VLC_EGENERIC;
     }
 
