@@ -133,21 +133,6 @@ struct picture_ref_t
     picture_t *picture;
 };
 
-static inline enum de265_chroma ImageFormatToChroma(enum de265_image_format format) {
-    switch (format) {
-    case de265_image_format_mono8:
-        return de265_chroma_mono;
-    case de265_image_format_YUV420P8:
-        return de265_chroma_420;
-    case de265_image_format_YUV422P8:
-        return de265_chroma_422;
-    case de265_image_format_YUV444P8:
-        return de265_chroma_444;
-    default:
-        assert(false);
-        return 0;
-    }
-}
 
 static vlc_fourcc_t GetVlcCodec(decoder_t *dec, enum de265_chroma chroma, int bits_per_pixel) {
     vlc_fourcc_t result = CODEC_UNKNOWN;
@@ -501,6 +486,8 @@ static picture_t *Decode(decoder_t *dec, block_t **pp_block)
         }
     } while (!drawpicture);
 
+    //printf("IMAGE %p\n",image);
+
     int bits_per_pixel = __MAX(__MAX(de265_get_bits_per_pixel(image, 0),
                                      de265_get_bits_per_pixel(image, 1)),
                                de265_get_bits_per_pixel(image, 2));
@@ -606,6 +593,8 @@ static picture_t *Decode(decoder_t *dec, block_t **pp_block)
         }
     }
 
+    de265_release_picture(image);
+
     pic->b_progressive = true; /* codec does not support interlacing */
     pic->date = pts;
 
@@ -629,8 +618,10 @@ static void ReleasePictureRef(struct picture_ref_t *ref)
 /*****************************************************************************
  * GetPicture: create a vlc picture that can be used for direct rendering
  *****************************************************************************/
-static picture_t *GetPicture(decoder_t *dec, struct de265_image_spec* spec, struct de265_image *image)
+static picture_t *GetPicture(decoder_t *dec, const struct de265_image_spec* spec, struct de265_image_intern *image)
 {
+  return NULL;
+
     decoder_sys_t *sys = dec->p_sys;
     int width = (spec->width + spec->alignment - 1) / spec->alignment * spec->alignment;
     int height = spec->height;
@@ -640,22 +631,22 @@ static picture_t *GetPicture(decoder_t *dec, struct de265_image_spec* spec, stru
         return NULL;
     }
 
-    enum de265_chroma image_chroma = ImageFormatToChroma(spec->format);
+    enum de265_chroma image_chroma = spec->chroma; // ImageFormatToChroma(spec->format);
     if (image_chroma != de265_chroma_mono) {
-        if (de265_get_bits_per_pixel(image, 0) != de265_get_bits_per_pixel(image, 1) ||
-            de265_get_bits_per_pixel(image, 0) != de265_get_bits_per_pixel(image, 2) ||
-            de265_get_bits_per_pixel(image, 1) != de265_get_bits_per_pixel(image, 2)) {
+        if (de265_get_bits_per_pixel_intern(image, 0) != de265_get_bits_per_pixel_intern(image, 1) ||
+            de265_get_bits_per_pixel_intern(image, 0) != de265_get_bits_per_pixel_intern(image, 2) ||
+            de265_get_bits_per_pixel_intern(image, 1) != de265_get_bits_per_pixel_intern(image, 2)) {
             if (sys->direct_rendering_used != 0) {
                 msg_Dbg(dec, "input format has multiple bits per pixel (%d/%d/%d)",
-                        de265_get_bits_per_pixel(image, 0),
-                        de265_get_bits_per_pixel(image, 1),
-                        de265_get_bits_per_pixel(image, 2));
+                        de265_get_bits_per_pixel_intern(image, 0),
+                        de265_get_bits_per_pixel_intern(image, 1),
+                        de265_get_bits_per_pixel_intern(image, 2));
             }
             return NULL;
         }
     }
 
-    int bits_per_pixel = de265_get_bits_per_pixel(image, 0);
+    int bits_per_pixel = de265_get_bits_per_pixel_intern(image, 0);
     vlc_fourcc_t chroma = GetVlcCodec(dec, image_chroma, bits_per_pixel);
     if (chroma == CODEC_UNKNOWN) {
         // Unsupported chroma format.
@@ -747,7 +738,7 @@ error:
 /*****************************************************************************
  * GetBuffer: libde265 callback to create images
  *****************************************************************************/
-static int GetBuffer(de265_decoder_context* ctx, struct de265_image_spec* spec, struct de265_image* img, void* userdata)
+static int GetBuffer(struct de265_image_intern* img,  const struct de265_image_spec* spec, void* userdata)
 {
     decoder_t *dec = (decoder_t *) userdata;
     decoder_sys_t *sys = dec->p_sys;
@@ -758,7 +749,7 @@ static int GetBuffer(de265_decoder_context* ctx, struct de265_image_spec* spec, 
             msg_Warn(dec, "disabling direct rendering");
             sys->direct_rendering_used = 0;
         }
-        return de265_get_default_image_allocation_functions()->get_buffer(ctx, spec, img, userdata);
+        return de265_get_default_image_allocation_functions()->get_buffer(img, spec, userdata);
     }
 
     if (sys->direct_rendering_used != 1) {
@@ -776,30 +767,30 @@ static int GetBuffer(de265_decoder_context* ctx, struct de265_image_spec* spec, 
 
         uint8_t *data = pic->p[i].p_pixels;
         int stride = pic->p[i].i_pitch;
-        de265_set_image_plane(img, i, data, stride, ref);
+        de265_set_image_plane_intern(img, i, data, stride, ref);
     }
     decoder_UnlinkPicture(dec, pic);
     return 1;
 
 error:
     for (int i=0; i<3; i++) {
-        struct picture_ref_t *userdata = (struct picture_ref_t *) de265_get_image_plane_user_data(img, i);
+        struct picture_ref_t *userdata = (struct picture_ref_t *) de265_get_image_plane_user_data_intern(img, i);
         if (userdata) {
             ReleasePictureRef(userdata);
         }
     }
     decoder_DeletePicture(dec, pic);
-    return de265_get_default_image_allocation_functions()->get_buffer(ctx, spec, img, userdata);
+    return de265_get_default_image_allocation_functions()->get_buffer(img, spec, userdata);
 }
 
 /*****************************************************************************
  * ReleaseBuffer: libde265 callback to release images
  *****************************************************************************/
-static void ReleaseBuffer(de265_decoder_context* ctx, struct de265_image* img, void* userdata)
+static void ReleaseBuffer(struct de265_image_intern* img, void* userdata)
 {
     int release_default = 1;
     for (int i=0; i<3; i++) {
-        struct picture_ref_t *ref = (struct picture_ref_t *) de265_get_image_plane_user_data(img, i);
+        struct picture_ref_t *ref = (struct picture_ref_t *) de265_get_image_plane_user_data_intern(img, i);
         if (ref) {
             ReleasePictureRef(ref);
             release_default = 0;
@@ -808,7 +799,7 @@ static void ReleaseBuffer(de265_decoder_context* ctx, struct de265_image* img, v
 
     if (release_default) {
         // image was created from default allocator
-        de265_get_default_image_allocation_functions()->release_buffer(ctx, img, userdata);
+        de265_get_default_image_allocation_functions()->release_buffer(img, userdata);
     }
 }
 
@@ -838,7 +829,8 @@ static int Open(vlc_object_t *p_this)
     struct de265_image_allocation allocators;
     allocators.get_buffer = GetBuffer;
     allocators.release_buffer = ReleaseBuffer;
-    de265_set_image_allocation_functions(sys->ctx, &allocators, dec);
+    allocators.userdata = dec;
+    de265_set_image_allocation_functions(sys->ctx, &allocators);
 
     int threads = var_InheritInteger(dec, "libde265-threads");
     if (threads <= 0) {
