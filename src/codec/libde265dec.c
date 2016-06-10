@@ -66,6 +66,12 @@
     "usually has a detrimental effect on quality. However it provides a big " \
     "speedup for high definition streams.")
 
+#define DECODING_PERCENTAGE_TEXT N_("Percentage of frame to decode")
+#define DECODING_PERCENTAGE_LONGTEXT N_("Computation time can be reduced by dropping " \
+"input frames. This percentage specifies how many frames should be decoded at minimum. " \
+"Depending on how the input is encoded, it may be that more frames are decoded if required. "\
+"Usually, you cannot get lower than 50%.")
+
 #ifndef VLC_CODEC_HEV1
 #define VLC_CODEC_HEV1 VLC_FOURCC('h','e','v','1')
 #endif
@@ -102,6 +108,8 @@ vlc_module_begin ()
     set_subcategory(SUBCAT_INPUT_VCODEC)
     add_shortcut("libde265dec")
     add_integer("libde265-threads", 0, THREADS_TEXT, THREADS_LONGTEXT, true);
+    add_integer("libde265-decoding-percentage", 100, DECODING_PERCENTAGE_TEXT,
+                DECODING_PERCENTAGE_LONGTEXT, false);
     add_bool("libde265-disable-deblocking", false, DISABLE_DEBLOCKING_TEXT, DISABLE_DEBLOCKING_LONGTEXT, false)
     add_bool("libde265-disable-sao", false, DISABLE_SAO_TEXT, DISABLE_SAO_LONGTEXT, false)
 vlc_module_end ()
@@ -226,12 +234,19 @@ static vlc_fourcc_t GetVlcCodec(decoder_t *dec, enum de265_chroma chroma, int bi
 /*****************************************************************************
  * SetDecodeRation: tell the decoder to decode only a percentage of the framerate
  *****************************************************************************/
-static void SetDecodeRatio(decoder_sys_t *sys, int ratio)
+static void SetDecodeRatio(decoder_t *dec, int ratio)
 {
+  decoder_sys_t *sys = dec->p_sys;
+
+  ratio = var_InheritInteger(dec, "libde265-decoding-percentage");
+
+  //ratio=25;
+
     if (ratio != sys->decode_ratio) {
         de265_decoder_context *ctx = sys->ctx;
         sys->decode_ratio = ratio;
         de265_set_framerate_ratio(ctx, ratio);
+        /*
         if (ratio < 100) {
             de265_set_parameter_bool(sys->ctx, DE265_DECODER_PARAM_DISABLE_DEBLOCKING, true);
             de265_set_parameter_bool(sys->ctx, DE265_DECODER_PARAM_DISABLE_SAO, true);
@@ -239,6 +254,7 @@ static void SetDecodeRatio(decoder_sys_t *sys, int ratio)
             de265_set_parameter_bool(sys->ctx, DE265_DECODER_PARAM_DISABLE_DEBLOCKING, sys->disable_deblocking);
             de265_set_parameter_bool(sys->ctx, DE265_DECODER_PARAM_DISABLE_SAO, sys->disable_sao);
         }
+        */
     }
 }
 
@@ -260,13 +276,15 @@ static picture_t *Decode(decoder_t *dec, block_t **pp_block)
         return NULL;
 
     if (block->i_flags & (BLOCK_FLAG_DISCONTINUITY|BLOCK_FLAG_CORRUPTED)) {
-        SetDecodeRatio(sys, 100);
+        SetDecodeRatio(dec, 100);
         sys->late_frames = 0;
         if (block->i_flags & BLOCK_FLAG_DISCONTINUITY) {
             de265_reset(ctx);
         }
         goto error;
     }
+
+    SetDecodeRatio(dec, 100);
 
     if (sys->check_extra) {
         int extra_length = dec->fmt_in.i_extra;
@@ -344,7 +362,7 @@ static picture_t *Decode(decoder_t *dec, block_t **pp_block)
     }
 
     if ((prerolling = (block->i_flags & BLOCK_FLAG_PREROLL))) {
-        SetDecodeRatio(sys, 100);
+        SetDecodeRatio(dec, 100);
         sys->late_frames = 0;
         drawpicture = false;
     } else {
@@ -364,7 +382,7 @@ static picture_t *Decode(decoder_t *dec, block_t **pp_block)
         drawpicture = false;
         if (sys->late_frames < LATE_FRAMES_DROP_HARD) {
             // tell the decoder to skip frames
-            SetDecodeRatio(sys, 0);
+            SetDecodeRatio(dec, 0);
         } else {
             // picture too late, won't decode, but break picture until
             // a new keyframe is available
@@ -481,12 +499,10 @@ static picture_t *Decode(decoder_t *dec, block_t **pp_block)
                 sys->late_frames_start = mdate();
             }
         } else {
-            SetDecodeRatio(sys, 100);
+            SetDecodeRatio(dec, 100);
             sys->late_frames = 0;
         }
     } while (!drawpicture);
-
-    //printf("IMAGE %p\n",image);
 
     int bits_per_pixel = __MAX(__MAX(de265_get_bits_per_pixel(image, 0),
                                      de265_get_bits_per_pixel(image, 1)),
@@ -620,8 +636,6 @@ static void ReleasePictureRef(struct picture_ref_t *ref)
  *****************************************************************************/
 static picture_t *GetPicture(decoder_t *dec, const struct de265_image_spec* spec, struct de265_image_intern *image)
 {
-  return NULL;
-
     decoder_sys_t *sys = dec->p_sys;
     int width = (spec->width + spec->alignment - 1) / spec->alignment * spec->alignment;
     int height = spec->height;
