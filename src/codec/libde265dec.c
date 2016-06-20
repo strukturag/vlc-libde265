@@ -72,6 +72,10 @@
 "Depending on how the input is encoded, it may be that more frames are decoded if required. "\
 "Usually, you cannot get lower than 50%.")
 
+#define SUPPRESS_FAULTY_IMAGES_TEXT N_("Suppress faulty images")
+#define SUPPRESS_FAULTY_IMAGES_LONGTEXT N_("Do not show images that have decoding errors " \
+"because of faulty input streams or missing reference frames.")
+
 #ifndef VLC_CODEC_HEV1
 #define VLC_CODEC_HEV1 VLC_FOURCC('h','e','v','1')
 #endif
@@ -110,8 +114,10 @@ vlc_module_begin ()
     add_integer("libde265-threads", 0, THREADS_TEXT, THREADS_LONGTEXT, true);
     add_integer("libde265-decoding-percentage", 100, DECODING_PERCENTAGE_TEXT,
                 DECODING_PERCENTAGE_LONGTEXT, false);
-    add_bool("libde265-disable-deblocking", false, DISABLE_DEBLOCKING_TEXT, DISABLE_DEBLOCKING_LONGTEXT, false)
-    add_bool("libde265-disable-sao", false, DISABLE_SAO_TEXT, DISABLE_SAO_LONGTEXT, false)
+    add_bool("libde265-suppress-faulty-images", true, SUPPRESS_FAULTY_IMAGES_TEXT,
+             SUPPRESS_FAULTY_IMAGES_LONGTEXT, true);
+    add_bool("libde265-disable-deblocking", false, DISABLE_DEBLOCKING_TEXT, DISABLE_DEBLOCKING_LONGTEXT, true)
+    add_bool("libde265-disable-sao", false, DISABLE_SAO_TEXT, DISABLE_SAO_LONGTEXT, true)
 vlc_module_end ()
 
 /*****************************************************************************
@@ -258,6 +264,27 @@ static void SetDecodeRatio(decoder_t *dec, int ratio)
     }
 }
 
+
+/*
+void writeImage(const struct de265_image* img)
+{
+  static FILE* fh = NULL;
+  if (!fh) fh=fopen("/storage/users/farindk/output.yuv","wb");
+
+  for (int c=0;c<3;c++) {
+    int stride;
+    const uint8_t* p = de265_get_image_plane(img,c,&stride);
+
+    for (int y=0;y<de265_get_image_height(img,c);y++) {
+      fwrite(p+stride*y, de265_get_image_width(img,c),1, fh);
+    }
+  }
+
+  fflush(fh);
+}
+*/
+
+
 /****************************************************************************
  * Decode: the whole thing
  ****************************************************************************/
@@ -380,6 +407,7 @@ static picture_t *Decode(decoder_t *dec, block_t **pp_block)
     if (!dec->b_pace_control &&
         (sys->late_frames > LATE_FRAMES_DROP_DECODER)) {
         drawpicture = false;
+
         if (sys->late_frames < LATE_FRAMES_DROP_HARD) {
             // tell the decoder to skip frames
             SetDecodeRatio(dec, 0);
@@ -468,6 +496,16 @@ static picture_t *Decode(decoder_t *dec, block_t **pp_block)
             }
 
             image = de265_get_next_picture(ctx);
+
+
+            // optionally suppress the output of faulty images
+
+            if (image && !de265_decoded_image_correct(image)) {
+              if (var_InheritBool(dec, "libde265-suppress-faulty-images")) {
+                de265_release_picture(image);
+                image = NULL;
+              }
+            }
         } while (image == NULL && can_decode_more);
 
         // log warnings
