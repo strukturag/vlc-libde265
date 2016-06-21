@@ -296,7 +296,7 @@ static picture_t *Decode(decoder_t *dec, block_t **pp_block)
     bool prerolling;
     de265_error err;
     int can_decode_more;
-    const struct de265_image *image;
+    const struct de265_image *image = NULL;
 
     block_t *block = *pp_block;
     if (!block)
@@ -495,8 +495,11 @@ static picture_t *Decode(decoder_t *dec, block_t **pp_block)
                 }
             }
 
-            image = de265_get_next_picture(ctx);
+            if (image) {
+              de265_release_picture(image);
+            }
 
+            image = de265_get_next_picture(ctx);
 
             // optionally suppress the output of faulty images
 
