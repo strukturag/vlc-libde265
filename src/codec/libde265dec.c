@@ -1,9 +1,10 @@
 /*****************************************************************************
  * libde265dec.c: libde265 decoder (HEVC/H.265) module
  *****************************************************************************
- * Copyright (C) 2014 struktur AG
+ * Copyright (C) 2014-2016 struktur AG
  *
  * Authors: Joachim Bauch <bauch@struktur.de>
+ *          Dirk Farin <farin@struktur.de>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by
@@ -56,17 +57,17 @@
 #define THREADS_TEXT N_("Threads")
 #define THREADS_LONGTEXT N_("Number of threads used for decoding, 0 meaning auto")
 
-#define DISABLE_DEBLOCKING_TEXT N_("Disable deblocking?")
+#define DISABLE_DEBLOCKING_TEXT N_("Disable deblocking")
 #define DISABLE_DEBLOCKING_LONGTEXT N_("Disabling the deblocking filter " \
     "usually has a detrimental effect on quality. However it provides a big " \
     "speedup for high definition streams.")
 
-#define DISABLE_SAO_TEXT N_("Disable SAO filter?")
+#define DISABLE_SAO_TEXT N_("Disable SAO filter")
 #define DISABLE_SAO_LONGTEXT N_("Disabling the sample adaptive offset filter " \
     "usually has a detrimental effect on quality. However it provides a big " \
     "speedup for high definition streams.")
 
-#define DECODING_PERCENTAGE_TEXT N_("Percentage of frame to decode")
+#define DECODING_PERCENTAGE_TEXT N_("Percentage of frames to decode")
 #define DECODING_PERCENTAGE_LONGTEXT N_("Computation time can be reduced by dropping " \
 "input frames. This percentage specifies how many frames should be decoded at minimum. " \
 "Depending on how the input is encoded, it may be that more frames are decoded if required. "\
@@ -244,24 +245,34 @@ static void SetDecodeRatio(decoder_t *dec, int ratio)
 {
   decoder_sys_t *sys = dec->p_sys;
 
+
+  // --- set frame rate ratio ---
+
   ratio = var_InheritInteger(dec, "libde265-decoding-percentage");
 
-  //ratio=25;
+  if (ratio != sys->decode_ratio) {
+    de265_decoder_context *ctx = sys->ctx;
+    sys->decode_ratio = ratio;
+    de265_set_framerate_ratio(ctx, ratio);
+  }
 
-    if (ratio != sys->decode_ratio) {
-        de265_decoder_context *ctx = sys->ctx;
-        sys->decode_ratio = ratio;
-        de265_set_framerate_ratio(ctx, ratio);
-        /*
-        if (ratio < 100) {
-            de265_set_parameter_bool(sys->ctx, DE265_DECODER_PARAM_DISABLE_DEBLOCKING, true);
-            de265_set_parameter_bool(sys->ctx, DE265_DECODER_PARAM_DISABLE_SAO, true);
-        } else {
-            de265_set_parameter_bool(sys->ctx, DE265_DECODER_PARAM_DISABLE_DEBLOCKING, sys->disable_deblocking);
-            de265_set_parameter_bool(sys->ctx, DE265_DECODER_PARAM_DISABLE_SAO, sys->disable_sao);
-        }
-        */
-    }
+
+  // --- optionally disable postproc filters ---
+
+  bool disableDeblk = var_InheritBool(dec, "libde265-disable-deblocking");
+  bool disableSAO   = var_InheritBool(dec, "libde265-disable-sao");
+
+  if (disableDeblk != sys->disable_deblocking) {
+    sys->disable_deblocking = disableDeblk;
+    de265_set_parameter_bool(sys->ctx, DE265_DECODER_PARAM_DISABLE_DEBLOCKING,
+                             sys->disable_deblocking);
+  }
+
+  if (disableSAO != sys->disable_sao) {
+    sys->disable_sao = disableSAO;
+    de265_set_parameter_bool(sys->ctx, DE265_DECODER_PARAM_DISABLE_SAO,
+                             sys->disable_sao);
+  }
 }
 
 
@@ -925,6 +936,11 @@ static int Open(vlc_object_t *p_this)
     sys->direct_rendering_used = -1;
     sys->disable_deblocking = var_InheritBool(dec, "libde265-disable-deblocking");
     sys->disable_sao = var_InheritBool(dec, "libde265-disable-sao");
+
+    de265_set_parameter_bool(sys->ctx, DE265_DECODER_PARAM_DISABLE_DEBLOCKING,
+                             sys->disable_deblocking);
+    de265_set_parameter_bool(sys->ctx, DE265_DECODER_PARAM_DISABLE_SAO,
+                             sys->disable_sao);
 
     return VLC_SUCCESS;
 }
