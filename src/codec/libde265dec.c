@@ -42,8 +42,10 @@
 // Should always come from the "extra" data.
 #define DEFAULT_LENGTH_SIZE     4
 
-// Maximum number of threads to use
-#define MAX_THREAD_COUNT        32
+// Maximum number of frames to decode in parallel
+#define MAX_PARALLEL_FRAMES  10
+
+#define THREADS_PER_FRAME    10
 
 // Drop all frames if late frames were available for more than 5 seconds
 #define LATE_FRAMES_DROP_ALWAYS_AGE 5
@@ -54,8 +56,8 @@
 // Don't pass data to decoder if more than 12 late frames
 #define LATE_FRAMES_DROP_HARD       12
 
-#define THREADS_TEXT N_("Threads")
-#define THREADS_LONGTEXT N_("Number of threads used for decoding, 0 meaning auto")
+#define PARALLEL_FRAMES_TEXT N_("Parallel frames")
+#define PARALLEL_FRAMES_LONGTEXT N_("Number of frames to decode in parallel, 0 meaning auto")
 
 #define DISABLE_DEBLOCKING_TEXT N_("Disable deblocking")
 #define DISABLE_DEBLOCKING_LONGTEXT N_("Disabling the deblocking filter " \
@@ -112,7 +114,7 @@ vlc_module_begin ()
     set_category(CAT_INPUT)
     set_subcategory(SUBCAT_INPUT_VCODEC)
     add_shortcut("libde265dec")
-    add_integer("libde265-threads", 0, THREADS_TEXT, THREADS_LONGTEXT, true);
+    add_integer("libde265-parallel-frames", 0, PARALLEL_FRAMES_TEXT, PARALLEL_FRAMES_LONGTEXT, true);
     add_integer("libde265-decoding-percentage", 100, DECODING_PERCENTAGE_TEXT,
                 DECODING_PERCENTAGE_LONGTEXT, false);
     add_bool("libde265-suppress-faulty-images", true, SUPPRESS_FAULTY_IMAGES_TEXT,
@@ -377,25 +379,6 @@ static picture_t *Decode(decoder_t *dec, block_t **pp_block)
                 }
             }
             de265_push_end_of_NAL(ctx);
-            do {
-                err = de265_decode(ctx, &can_decode_more);
-                switch (err) {
-                case DE265_OK:
-                    break;
-
-                case DE265_ERROR_IMAGE_BUFFER_FULL:
-                case DE265_ERROR_WAITING_FOR_INPUT_DATA:
-                    // not really an error
-                    can_decode_more = 0;
-                    break;
-
-                default:
-                    if (!de265_isOK(err)) {
-                        msg_Err(dec, "Failed to decode extra data: %s (%d)", de265_get_error_text(err), err);
-                        goto error;
-                    }
-                }
-            } while (can_decode_more);
         }
     }
 
@@ -487,40 +470,33 @@ static picture_t *Decode(decoder_t *dec, block_t **pp_block)
     do {
         // decode data until we get an image or no more data is
         // available for decoding
-        do {
-            err = de265_decode(ctx, &can_decode_more);
-            switch (err) {
-            case DE265_OK:
-                break;
 
-            case DE265_ERROR_IMAGE_BUFFER_FULL:
-            case DE265_ERROR_WAITING_FOR_INPUT_DATA:
-                // not really an error
-                can_decode_more = 0;
-                break;
+        if (image) {
+          de265_release_picture(image);
+          image = NULL;
+        }
 
-            default:
-                if (!de265_isOK(err)) {
-                    msg_Err(dec, "Failed to decode frame: %s (%d)", de265_get_error_text(err), err);
-                    return NULL;
-                }
-            }
 
-            if (image) {
-              de265_release_picture(image);
-            }
+        // block until we get an image or until we need more input
+        int actions = de265_get_action(ctx, true);
 
-            image = de265_get_next_picture(ctx);
+        if (actions & de265_action_get_image) {
+          image = de265_get_next_picture(ctx);
+        }
 
-            // optionally suppress the output of faulty images
+        // optionally suppress the output of faulty images
 
-            if (image && !de265_decoded_image_correct(image)) {
-              if (var_InheritBool(dec, "libde265-suppress-faulty-images")) {
-                de265_release_picture(image);
-                image = NULL;
-              }
-            }
-        } while (image == NULL && can_decode_more);
+        if (image && !de265_decoded_image_correct(image)) {
+          if (var_InheritBool(dec, "libde265-suppress-faulty-images") || !drawpicture) {
+            de265_release_picture(image);
+            image = NULL;
+            if (!drawpicture) continue;
+          }
+        }
+
+        if (image==NULL) {
+          return NULL;
+        }
 
         // log warnings
         for (;;) {
@@ -530,10 +506,6 @@ static picture_t *Decode(decoder_t *dec, block_t **pp_block)
             }
 
             msg_Warn(dec, "%s", de265_get_error_text(warning));
-        }
-
-        if (!image) {
-            return NULL;
         }
 
         if (use_decoder_pts) {
@@ -898,25 +870,28 @@ static int Open(vlc_object_t *p_this)
     allocators.userdata = dec;
     de265_set_image_allocation_functions(sys->ctx, &allocators);
 
-    int threads = var_InheritInteger(dec, "libde265-threads");
-    if (threads <= 0) {
-        threads = vlc_GetCPUCount();
-        // NOTE: We start more threads than cores for now, as some threads
-        // might get blocked while waiting for dependent data. Having more
-        // threads increases decoding speed by about 10%.
-        threads = threads * 2;
-    }
-    if (threads > 1) {
-        threads = __MIN(threads, MAX_THREAD_COUNT);
-        de265_error err = de265_start_worker_threads(sys->ctx, threads);
-        if (!de265_isOK(err)) {
-            // don't report to caller, decoding will work anyway...
-            msg_Err(dec, "Failed to start worker threads: %s (%d)", de265_get_error_text(err), err);
-        } else {
-            msg_Dbg(p_this, "Started %d worker threads", threads);
+    int parallel_frames = var_InheritInteger(dec, "libde265-parallel-frames");
+    if (parallel_frames <= 0) {
+        int cpus = vlc_GetCPUCount();
+
+        switch (cpus) {
+        case 1:  parallel_frames=1;  break;
+        case 2:  parallel_frames=5;  break;
+        default: parallel_frames=10; break;
         }
+    }
+
+    if (parallel_frames>MAX_PARALLEL_FRAMES) parallel_frames=MAX_PARALLEL_FRAMES;
+
+    int threads = parallel_frames * THREADS_PER_FRAME;
+
+    de265_set_max_decode_frames_parallel(sys->ctx, parallel_frames);
+    de265_error err = de265_start_worker_threads(sys->ctx, threads);
+    if (!de265_isOK(err)) {
+      // don't report to caller, decoding will work anyway...
+      msg_Err(dec, "Failed to start worker threads: %s (%d)", de265_get_error_text(err), err);
     } else {
-        msg_Dbg(p_this, "Using single-threaded decoding");
+      msg_Dbg(p_this, "Started %d worker threads", threads);
     }
 
     dec->pf_decode_video = Decode;
