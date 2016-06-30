@@ -891,7 +891,7 @@ static int Open(vlc_object_t *p_this)
       // don't report to caller, decoding will work anyway...
       msg_Err(dec, "Failed to start worker threads: %s (%d)", de265_get_error_text(err), err);
     } else {
-      msg_Dbg(p_this, "Started %d worker threads", threads);
+      msg_Dbg(p_this, "Started %d worker threads on %d parallel frames", threads, parallel_frames);
     }
 
     dec->pf_decode_video = Decode;
