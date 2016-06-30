@@ -45,7 +45,7 @@
 // Maximum number of frames to decode in parallel
 #define MAX_PARALLEL_FRAMES  10
 
-#define THREADS_PER_FRAME    10
+#define THREADS_PER_FRAME     5
 
 // Drop all frames if late frames were available for more than 5 seconds
 #define LATE_FRAMES_DROP_ALWAYS_AGE 5
