@@ -874,6 +874,8 @@ static int Open(vlc_object_t *p_this)
     if (parallel_frames <= 0) {
         int cpus = vlc_GetCPUCount();
 
+        msg_Dbg(p_this, "Detected %d CPUs", cpus);
+
         switch (cpus) {
         case 1:  parallel_frames=1;  break;
         case 2:  parallel_frames=5;  break;
