@@ -1354,7 +1354,7 @@ static int SetPIDFilter( demux_t *p_demux, int i_pid, bool b_selected )
     if( !p_sys->b_access_control )
         return VLC_EGENERIC;
 
-    return stream_Control( p_demux->s, STREAM_CONTROL_ACCESS,
+    return stream_Control( p_demux->s,
                            ACCESS_SET_PRIVATE_ID_STATE, i_pid, b_selected );
 }
 
@@ -4184,7 +4184,7 @@ static void PMTCallBack( void *data, dvbpsi_pmt_t *p_pmt )
 
     /* Set CAM descrambling */
     if( !ProgramIsSelected( p_demux, prg->i_number )
-     || stream_Control( p_demux->s, STREAM_CONTROL_ACCESS,
+     || stream_Control( p_demux->s,
                         ACCESS_SET_PRIVATE_ID_CA, p_pmt ) != VLC_SUCCESS )
         dvbpsi_DeletePMT( p_pmt );
 

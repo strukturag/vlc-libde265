@@ -1,9 +1,10 @@
 /*****************************************************************************
  * libde265dec.c: libde265 decoder (HEVC/H.265) module
  *****************************************************************************
- * Copyright (C) 2014 struktur AG
+ * Copyright (C) 2014-2016 struktur AG
  *
  * Authors: Joachim Bauch <bauch@struktur.de>
+ *          Dirk Farin <farin@struktur.de>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by
@@ -41,8 +42,10 @@
 // Should always come from the "extra" data.
 #define DEFAULT_LENGTH_SIZE     4
 
-// Maximum number of threads to use
-#define MAX_THREAD_COUNT        32
+// Maximum number of frames to decode in parallel
+#define MAX_PARALLEL_FRAMES  10
+
+#define THREADS_PER_FRAME     5
 
 // Drop all frames if late frames were available for more than 5 seconds
 #define LATE_FRAMES_DROP_ALWAYS_AGE 5
@@ -53,18 +56,28 @@
 // Don't pass data to decoder if more than 12 late frames
 #define LATE_FRAMES_DROP_HARD       12
 
-#define THREADS_TEXT N_("Threads")
-#define THREADS_LONGTEXT N_("Number of threads used for decoding, 0 meaning auto")
+#define PARALLEL_FRAMES_TEXT N_("Parallel frames")
+#define PARALLEL_FRAMES_LONGTEXT N_("Number of frames to decode in parallel, 0 meaning auto")
 
-#define DISABLE_DEBLOCKING_TEXT N_("Disable deblocking?")
+#define DISABLE_DEBLOCKING_TEXT N_("Disable deblocking")
 #define DISABLE_DEBLOCKING_LONGTEXT N_("Disabling the deblocking filter " \
     "usually has a detrimental effect on quality. However it provides a big " \
     "speedup for high definition streams.")
 
-#define DISABLE_SAO_TEXT N_("Disable SAO filter?")
+#define DISABLE_SAO_TEXT N_("Disable SAO filter")
 #define DISABLE_SAO_LONGTEXT N_("Disabling the sample adaptive offset filter " \
     "usually has a detrimental effect on quality. However it provides a big " \
     "speedup for high definition streams.")
+
+#define DECODING_PERCENTAGE_TEXT N_("Percentage of frames to decode")
+#define DECODING_PERCENTAGE_LONGTEXT N_("Computation time can be reduced by dropping " \
+"input frames. This percentage specifies how many frames should be decoded at minimum. " \
+"Depending on how the input is encoded, it may be that more frames are decoded if required. "\
+"Usually, you cannot get lower than 50%.")
+
+#define SUPPRESS_FAULTY_IMAGES_TEXT N_("Suppress faulty images")
+#define SUPPRESS_FAULTY_IMAGES_LONGTEXT N_("Do not show images that have decoding errors " \
+"because of faulty input streams or missing reference frames.")
 
 #ifndef VLC_CODEC_HEV1
 #define VLC_CODEC_HEV1 VLC_FOURCC('h','e','v','1')
@@ -101,9 +114,13 @@ vlc_module_begin ()
     set_category(CAT_INPUT)
     set_subcategory(SUBCAT_INPUT_VCODEC)
     add_shortcut("libde265dec")
-    add_integer("libde265-threads", 0, THREADS_TEXT, THREADS_LONGTEXT, true);
-    add_bool("libde265-disable-deblocking", false, DISABLE_DEBLOCKING_TEXT, DISABLE_DEBLOCKING_LONGTEXT, false)
-    add_bool("libde265-disable-sao", false, DISABLE_SAO_TEXT, DISABLE_SAO_LONGTEXT, false)
+    add_integer("libde265-parallel-frames", 0, PARALLEL_FRAMES_TEXT, PARALLEL_FRAMES_LONGTEXT, true);
+    add_integer("libde265-decoding-percentage", 100, DECODING_PERCENTAGE_TEXT,
+                DECODING_PERCENTAGE_LONGTEXT, false);
+    add_bool("libde265-suppress-faulty-images", true, SUPPRESS_FAULTY_IMAGES_TEXT,
+             SUPPRESS_FAULTY_IMAGES_LONGTEXT, true);
+    add_bool("libde265-disable-deblocking", false, DISABLE_DEBLOCKING_TEXT, DISABLE_DEBLOCKING_LONGTEXT, true)
+    add_bool("libde265-disable-sao", false, DISABLE_SAO_TEXT, DISABLE_SAO_LONGTEXT, true)
 vlc_module_end ()
 
 /*****************************************************************************
@@ -133,21 +150,6 @@ struct picture_ref_t
     picture_t *picture;
 };
 
-static inline enum de265_chroma ImageFormatToChroma(enum de265_image_format format) {
-    switch (format) {
-    case de265_image_format_mono8:
-        return de265_chroma_mono;
-    case de265_image_format_YUV420P8:
-        return de265_chroma_420;
-    case de265_image_format_YUV422P8:
-        return de265_chroma_422;
-    case de265_image_format_YUV444P8:
-        return de265_chroma_444;
-    default:
-        assert(false);
-        return 0;
-    }
-}
 
 static vlc_fourcc_t GetVlcCodec(decoder_t *dec, enum de265_chroma chroma, int bits_per_pixel) {
     vlc_fourcc_t result = CODEC_UNKNOWN;
@@ -241,21 +243,60 @@ static vlc_fourcc_t GetVlcCodec(decoder_t *dec, enum de265_chroma chroma, int bi
 /*****************************************************************************
  * SetDecodeRation: tell the decoder to decode only a percentage of the framerate
  *****************************************************************************/
-static void SetDecodeRatio(decoder_sys_t *sys, int ratio)
+static void SetDecodeRatio(decoder_t *dec, int ratio)
 {
-    if (ratio != sys->decode_ratio) {
-        de265_decoder_context *ctx = sys->ctx;
-        sys->decode_ratio = ratio;
-        de265_set_framerate_ratio(ctx, ratio);
-        if (ratio < 100) {
-            de265_set_parameter_bool(sys->ctx, DE265_DECODER_PARAM_DISABLE_DEBLOCKING, true);
-            de265_set_parameter_bool(sys->ctx, DE265_DECODER_PARAM_DISABLE_SAO, true);
-        } else {
-            de265_set_parameter_bool(sys->ctx, DE265_DECODER_PARAM_DISABLE_DEBLOCKING, sys->disable_deblocking);
-            de265_set_parameter_bool(sys->ctx, DE265_DECODER_PARAM_DISABLE_SAO, sys->disable_sao);
-        }
-    }
+  decoder_sys_t *sys = dec->p_sys;
+
+
+  // --- set frame rate ratio ---
+
+  ratio = var_InheritInteger(dec, "libde265-decoding-percentage");
+
+  if (ratio != sys->decode_ratio) {
+    de265_decoder_context *ctx = sys->ctx;
+    sys->decode_ratio = ratio;
+    de265_set_framerate_ratio(ctx, ratio);
+  }
+
+
+  // --- optionally disable postproc filters ---
+
+  bool disableDeblk = var_InheritBool(dec, "libde265-disable-deblocking");
+  bool disableSAO   = var_InheritBool(dec, "libde265-disable-sao");
+
+  if (disableDeblk != sys->disable_deblocking) {
+    sys->disable_deblocking = disableDeblk;
+    de265_set_parameter_bool(sys->ctx, DE265_DECODER_PARAM_DISABLE_DEBLOCKING,
+                             sys->disable_deblocking);
+  }
+
+  if (disableSAO != sys->disable_sao) {
+    sys->disable_sao = disableSAO;
+    de265_set_parameter_bool(sys->ctx, DE265_DECODER_PARAM_DISABLE_SAO,
+                             sys->disable_sao);
+  }
 }
+
+
+/*
+void writeImage(const struct de265_image* img)
+{
+  static FILE* fh = NULL;
+  if (!fh) fh=fopen("/storage/users/farindk/output.yuv","wb");
+
+  for (int c=0;c<3;c++) {
+    int stride;
+    const uint8_t* p = de265_get_image_plane(img,c,&stride);
+
+    for (int y=0;y<de265_get_image_height(img,c);y++) {
+      fwrite(p+stride*y, de265_get_image_width(img,c),1, fh);
+    }
+  }
+
+  fflush(fh);
+}
+*/
+
 
 /****************************************************************************
  * Decode: the whole thing
@@ -268,20 +309,22 @@ static picture_t *Decode(decoder_t *dec, block_t **pp_block)
     bool prerolling;
     de265_error err;
     int can_decode_more;
-    const struct de265_image *image;
+    const struct de265_image *image = NULL;
 
     block_t *block = *pp_block;
     if (!block)
         return NULL;
 
     if (block->i_flags & (BLOCK_FLAG_DISCONTINUITY|BLOCK_FLAG_CORRUPTED)) {
-        SetDecodeRatio(sys, 100);
+        SetDecodeRatio(dec, 100);
         sys->late_frames = 0;
         if (block->i_flags & BLOCK_FLAG_DISCONTINUITY) {
             de265_reset(ctx);
         }
         goto error;
     }
+
+    SetDecodeRatio(dec, 100);
 
     if (sys->check_extra) {
         int extra_length = dec->fmt_in.i_extra;
@@ -336,30 +379,11 @@ static picture_t *Decode(decoder_t *dec, block_t **pp_block)
                 }
             }
             de265_push_end_of_NAL(ctx);
-            do {
-                err = de265_decode(ctx, &can_decode_more);
-                switch (err) {
-                case DE265_OK:
-                    break;
-
-                case DE265_ERROR_IMAGE_BUFFER_FULL:
-                case DE265_ERROR_WAITING_FOR_INPUT_DATA:
-                    // not really an error
-                    can_decode_more = 0;
-                    break;
-
-                default:
-                    if (!de265_isOK(err)) {
-                        msg_Err(dec, "Failed to decode extra data: %s (%d)", de265_get_error_text(err), err);
-                        goto error;
-                    }
-                }
-            } while (can_decode_more);
         }
     }
 
     if ((prerolling = (block->i_flags & BLOCK_FLAG_PREROLL))) {
-        SetDecodeRatio(sys, 100);
+        SetDecodeRatio(dec, 100);
         sys->late_frames = 0;
         drawpicture = false;
     } else {
@@ -377,9 +401,10 @@ static picture_t *Decode(decoder_t *dec, block_t **pp_block)
     if (!dec->b_pace_control &&
         (sys->late_frames > LATE_FRAMES_DROP_DECODER)) {
         drawpicture = false;
+
         if (sys->late_frames < LATE_FRAMES_DROP_HARD) {
             // tell the decoder to skip frames
-            SetDecodeRatio(sys, 0);
+            SetDecodeRatio(dec, 0);
         } else {
             // picture too late, won't decode, but break picture until
             // a new keyframe is available
@@ -445,27 +470,33 @@ static picture_t *Decode(decoder_t *dec, block_t **pp_block)
     do {
         // decode data until we get an image or no more data is
         // available for decoding
-        do {
-            err = de265_decode(ctx, &can_decode_more);
-            switch (err) {
-            case DE265_OK:
-                break;
 
-            case DE265_ERROR_IMAGE_BUFFER_FULL:
-            case DE265_ERROR_WAITING_FOR_INPUT_DATA:
-                // not really an error
-                can_decode_more = 0;
-                break;
+        if (image) {
+          de265_release_picture(image);
+          image = NULL;
+        }
 
-            default:
-                if (!de265_isOK(err)) {
-                    msg_Err(dec, "Failed to decode frame: %s (%d)", de265_get_error_text(err), err);
-                    return NULL;
-                }
-            }
 
-            image = de265_get_next_picture(ctx);
-        } while (image == NULL && can_decode_more);
+        // block until we get an image or until we need more input
+        int actions = de265_get_action(ctx, true);
+
+        if (actions & de265_action_get_image) {
+          image = de265_get_next_picture(ctx);
+        }
+
+        // optionally suppress the output of faulty images
+
+        if (image && !de265_decoded_image_correct(image)) {
+          if (var_InheritBool(dec, "libde265-suppress-faulty-images") || !drawpicture) {
+            de265_release_picture(image);
+            image = NULL;
+            if (!drawpicture) continue;
+          }
+        }
+
+        if (image==NULL) {
+          return NULL;
+        }
 
         // log warnings
         for (;;) {
@@ -475,10 +506,6 @@ static picture_t *Decode(decoder_t *dec, block_t **pp_block)
             }
 
             msg_Warn(dec, "%s", de265_get_error_text(warning));
-        }
-
-        if (!image) {
-            return NULL;
         }
 
         if (use_decoder_pts) {
@@ -496,7 +523,7 @@ static picture_t *Decode(decoder_t *dec, block_t **pp_block)
                 sys->late_frames_start = mdate();
             }
         } else {
-            SetDecodeRatio(sys, 100);
+            SetDecodeRatio(dec, 100);
             sys->late_frames = 0;
         }
     } while (!drawpicture);
@@ -606,6 +633,8 @@ static picture_t *Decode(decoder_t *dec, block_t **pp_block)
         }
     }
 
+    de265_release_picture(image);
+
     pic->b_progressive = true; /* codec does not support interlacing */
     pic->date = pts;
 
@@ -629,7 +658,7 @@ static void ReleasePictureRef(struct picture_ref_t *ref)
 /*****************************************************************************
  * GetPicture: create a vlc picture that can be used for direct rendering
  *****************************************************************************/
-static picture_t *GetPicture(decoder_t *dec, struct de265_image_spec* spec, struct de265_image *image)
+static picture_t *GetPicture(decoder_t *dec, const struct de265_image_spec* spec, struct de265_image_intern *image)
 {
     decoder_sys_t *sys = dec->p_sys;
     int width = (spec->width + spec->alignment - 1) / spec->alignment * spec->alignment;
@@ -640,22 +669,22 @@ static picture_t *GetPicture(decoder_t *dec, struct de265_image_spec* spec, stru
         return NULL;
     }
 
-    enum de265_chroma image_chroma = ImageFormatToChroma(spec->format);
+    enum de265_chroma image_chroma = spec->chroma; // ImageFormatToChroma(spec->format);
     if (image_chroma != de265_chroma_mono) {
-        if (de265_get_bits_per_pixel(image, 0) != de265_get_bits_per_pixel(image, 1) ||
-            de265_get_bits_per_pixel(image, 0) != de265_get_bits_per_pixel(image, 2) ||
-            de265_get_bits_per_pixel(image, 1) != de265_get_bits_per_pixel(image, 2)) {
+        if (de265_get_bits_per_pixel_intern(image, 0) != de265_get_bits_per_pixel_intern(image, 1) ||
+            de265_get_bits_per_pixel_intern(image, 0) != de265_get_bits_per_pixel_intern(image, 2) ||
+            de265_get_bits_per_pixel_intern(image, 1) != de265_get_bits_per_pixel_intern(image, 2)) {
             if (sys->direct_rendering_used != 0) {
                 msg_Dbg(dec, "input format has multiple bits per pixel (%d/%d/%d)",
-                        de265_get_bits_per_pixel(image, 0),
-                        de265_get_bits_per_pixel(image, 1),
-                        de265_get_bits_per_pixel(image, 2));
+                        de265_get_bits_per_pixel_intern(image, 0),
+                        de265_get_bits_per_pixel_intern(image, 1),
+                        de265_get_bits_per_pixel_intern(image, 2));
             }
             return NULL;
         }
     }
 
-    int bits_per_pixel = de265_get_bits_per_pixel(image, 0);
+    int bits_per_pixel = de265_get_bits_per_pixel_intern(image, 0);
     vlc_fourcc_t chroma = GetVlcCodec(dec, image_chroma, bits_per_pixel);
     if (chroma == CODEC_UNKNOWN) {
         // Unsupported chroma format.
@@ -747,7 +776,7 @@ error:
 /*****************************************************************************
  * GetBuffer: libde265 callback to create images
  *****************************************************************************/
-static int GetBuffer(de265_decoder_context* ctx, struct de265_image_spec* spec, struct de265_image* img, void* userdata)
+static int GetBuffer(struct de265_image_intern* img,  const struct de265_image_spec* spec, void* userdata)
 {
     decoder_t *dec = (decoder_t *) userdata;
     decoder_sys_t *sys = dec->p_sys;
@@ -758,7 +787,7 @@ static int GetBuffer(de265_decoder_context* ctx, struct de265_image_spec* spec, 
             msg_Warn(dec, "disabling direct rendering");
             sys->direct_rendering_used = 0;
         }
-        return de265_get_default_image_allocation_functions()->get_buffer(ctx, spec, img, userdata);
+        return de265_get_default_image_allocation_functions()->get_buffer(img, spec, userdata);
     }
 
     if (sys->direct_rendering_used != 1) {
@@ -776,30 +805,30 @@ static int GetBuffer(de265_decoder_context* ctx, struct de265_image_spec* spec, 
 
         uint8_t *data = pic->p[i].p_pixels;
         int stride = pic->p[i].i_pitch;
-        de265_set_image_plane(img, i, data, stride, ref);
+        de265_set_image_plane_intern(img, i, data, stride, ref);
     }
     decoder_UnlinkPicture(dec, pic);
     return 1;
 
 error:
     for (int i=0; i<3; i++) {
-        struct picture_ref_t *userdata = (struct picture_ref_t *) de265_get_image_plane_user_data(img, i);
+        struct picture_ref_t *userdata = (struct picture_ref_t *) de265_get_image_plane_user_data_intern(img, i);
         if (userdata) {
             ReleasePictureRef(userdata);
         }
     }
     decoder_DeletePicture(dec, pic);
-    return de265_get_default_image_allocation_functions()->get_buffer(ctx, spec, img, userdata);
+    return de265_get_default_image_allocation_functions()->get_buffer(img, spec, userdata);
 }
 
 /*****************************************************************************
  * ReleaseBuffer: libde265 callback to release images
  *****************************************************************************/
-static void ReleaseBuffer(de265_decoder_context* ctx, struct de265_image* img, void* userdata)
+static void ReleaseBuffer(struct de265_image_intern* img, void* userdata)
 {
     int release_default = 1;
     for (int i=0; i<3; i++) {
-        struct picture_ref_t *ref = (struct picture_ref_t *) de265_get_image_plane_user_data(img, i);
+        struct picture_ref_t *ref = (struct picture_ref_t *) de265_get_image_plane_user_data_intern(img, i);
         if (ref) {
             ReleasePictureRef(ref);
             release_default = 0;
@@ -808,7 +837,7 @@ static void ReleaseBuffer(de265_decoder_context* ctx, struct de265_image* img, v
 
     if (release_default) {
         // image was created from default allocator
-        de265_get_default_image_allocation_functions()->release_buffer(ctx, img, userdata);
+        de265_get_default_image_allocation_functions()->release_buffer(img, userdata);
     }
 }
 
@@ -838,27 +867,33 @@ static int Open(vlc_object_t *p_this)
     struct de265_image_allocation allocators;
     allocators.get_buffer = GetBuffer;
     allocators.release_buffer = ReleaseBuffer;
-    de265_set_image_allocation_functions(sys->ctx, &allocators, dec);
+    allocators.userdata = dec;
+    de265_set_image_allocation_functions(sys->ctx, &allocators);
 
-    int threads = var_InheritInteger(dec, "libde265-threads");
-    if (threads <= 0) {
-        threads = vlc_GetCPUCount();
-        // NOTE: We start more threads than cores for now, as some threads
-        // might get blocked while waiting for dependent data. Having more
-        // threads increases decoding speed by about 10%.
-        threads = threads * 2;
-    }
-    if (threads > 1) {
-        threads = __MIN(threads, MAX_THREAD_COUNT);
-        de265_error err = de265_start_worker_threads(sys->ctx, threads);
-        if (!de265_isOK(err)) {
-            // don't report to caller, decoding will work anyway...
-            msg_Err(dec, "Failed to start worker threads: %s (%d)", de265_get_error_text(err), err);
-        } else {
-            msg_Dbg(p_this, "Started %d worker threads", threads);
+    int parallel_frames = var_InheritInteger(dec, "libde265-parallel-frames");
+    if (parallel_frames <= 0) {
+        int cpus = vlc_GetCPUCount();
+
+        msg_Dbg(p_this, "Detected %d CPUs", cpus);
+
+        switch (cpus) {
+        case 1:  parallel_frames=1;  break;
+        case 2:  parallel_frames=5;  break;
+        default: parallel_frames=10; break;
         }
+    }
+
+    if (parallel_frames>MAX_PARALLEL_FRAMES) parallel_frames=MAX_PARALLEL_FRAMES;
+
+    int threads = parallel_frames * THREADS_PER_FRAME;
+
+    de265_set_max_decode_frames_parallel(sys->ctx, parallel_frames);
+    de265_error err = de265_start_worker_threads(sys->ctx, threads);
+    if (!de265_isOK(err)) {
+      // don't report to caller, decoding will work anyway...
+      msg_Err(dec, "Failed to start worker threads: %s (%d)", de265_get_error_text(err), err);
     } else {
-        msg_Dbg(p_this, "Using single-threaded decoding");
+      msg_Dbg(p_this, "Started %d worker threads on %d parallel frames", threads, parallel_frames);
     }
 
     dec->pf_decode_video = Decode;
@@ -878,6 +913,11 @@ static int Open(vlc_object_t *p_this)
     sys->direct_rendering_used = -1;
     sys->disable_deblocking = var_InheritBool(dec, "libde265-disable-deblocking");
     sys->disable_sao = var_InheritBool(dec, "libde265-disable-sao");
+
+    de265_set_parameter_bool(sys->ctx, DE265_DECODER_PARAM_DISABLE_DEBLOCKING,
+                             sys->disable_deblocking);
+    de265_set_parameter_bool(sys->ctx, DE265_DECODER_PARAM_DISABLE_SAO,
+                             sys->disable_sao);
 
     return VLC_SUCCESS;
 }
